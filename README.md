@@ -1,7 +1,7 @@
-# Innebandy-anmälan – gratis, reklamfri, på Cloudflare Workers
+# Innebandy-anmälan
 
-En enkel, reklamfri variant av bokat.se. Varje spelare får en personlig länk
-och svarar **Ja / Kanske / Nej** på nästa pass. Allt körs gratis på
+En enkel, variant av bokat.se. Varje spelare får en personlig länk
+och svarar **Ja / Kanske / Nej** på nästa pass. Körs på
 Cloudflare Workers med en D1-databas.
 
 ## Filer
