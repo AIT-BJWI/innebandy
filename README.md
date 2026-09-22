@@ -22,8 +22,20 @@ public/admin.html       ← adminsida (/admin): lägg till pass och spelare, kop
 - Startsidan visar alltid **nästa pass** (fram till 3 timmar efter start).
   Alla kan se listan, men bara den som har en länk kan svara, och bara för sig
   själv.
-- Om mejl är inställt skickas **ett** mejl när tillräckligt många har svarat
-  ja.
+- **Återkommande pass** (t.ex. måndagar 19:30) läggs in på adminsidan. Passen
+  skapas automatiskt två veckor framåt. Ett enskilt tillfälle kan ställas in
+  (t.ex. en helgdag) utan att det skapas igen. Finns det redan ett manuellt pass
+  på samma tid tar serien över det, med svaren.
+- **Kommentarer**: alla med personlig länk kan kommentera passet och ta bort
+  sina egna kommentarer. Den som är inloggad som admin i samma webbläsare kan
+  ta bort alla.
+- **Påminnelse dagen innan**: spelare med e-post (läggs in på adminsidan) får
+  ett mejl med sin personliga länk ungefär ett dygn före passet, om de inte
+  redan har svarat nej. Kräver att mejl är inställt (se nedan).
+- Om mejl är inställt skickas också **ett** mejl till `NOTIFY_EMAILS` när
+  tillräckligt många har svarat ja.
+- En schemalagd körning (Cron Trigger) går varje timme och fyller på
+  återkommande pass och skickar påminnelser.
 
 ## Första gången: skapa databasen
 Kräver Node.js (`brew install node`).
@@ -62,11 +74,35 @@ npm run dev
 Öppna http://localhost:8787/admin. Den lokala databasen ligger i
 `.wrangler/` och påverkar inte den riktiga.
 
-## Valfritt: mejl när passet blir av
-Lägg till under **Settings → Variables and Secrets** i Cloudflare:
-- `RESEND_API_KEY` = er Resend-nyckel (gratis konto på resend.com), som *secret*
-- `NOTIFY_EMAILS` = t.ex. `anna@mail.se,bjorn@mail.se`
-- `FROM_EMAIL` = avsändaradress
+Testa den schemalagda körningen lokalt med `npx wrangler dev --test-scheduled`
+och öppna http://localhost:8787/__scheduled.
+
+## Nya databasmigreringar
+Lägg en ny fil i `migrations/` och kör den mot båda databaserna **innan**
+koden deployas:
+```bash
+npm run migrate
+npx wrangler d1 execute innebandy-preview --remote --file migrations/<fil>.sql
+```
+
+## Mejl: påminnelser och "passet blir av"
+Mejl skickas via [Resend](https://resend.com) (gratis upp till 3 000 mejl/månad).
+
+1. Skapa ett konto på resend.com och en API-nyckel.
+2. För att kunna mejla vem som helst måste ni **verifiera en egen domän** i
+   Resend (DNS-poster). Utan egen domän kan Resend bara skicka till den
+   e-postadress kontot är registrerat på.
+3. Sätt nyckeln som hemlighet:
+   ```bash
+   npx wrangler secret put RESEND_API_KEY
+   ```
+4. Lägg till under **Settings → Variables and Secrets** i Cloudflare:
+   - `FROM_EMAIL` = t.ex. `Innebandy <innebandy@er-doman.se>` (på den verifierade domänen)
+   - `NOTIFY_EMAILS` = valfritt, t.ex. `anna@mail.se,bjorn@mail.se`, för mejlet
+     när passet blir av
+
+`SITE_URL` i `wrangler.jsonc` används för länkarna i mejlen. Byt den om ni
+flyttar sajten till en egen domän.
 
 Minsta antal spelare sätts nu per pass på adminsidan, så `MIN_PLAYERS`
 behövs inte längre.

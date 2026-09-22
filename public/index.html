@@ -87,8 +87,8 @@
   .progress > div { height: 100%; width: 0; background: var(--yes); border-radius: 999px; transition: width 0.3s; }
   .verdict { margin-top: 14px; }
   .verdict span { color: var(--muted); }
-  ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
-  li {
+  .roster { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
+  .roster li {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -97,13 +97,53 @@
     background: var(--row);
     border-left: 4px solid var(--none);
   }
-  li.yes { border-left-color: var(--yes); }
-  li.maybe { border-left-color: var(--maybe); }
-  li.no { border-left-color: var(--no); }
-  li.none { color: var(--muted); }
-  li .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  li .tag { font-size: 0.8rem; color: var(--muted); }
-  li.me .name { font-weight: 700; }
+  .roster li.yes { border-left-color: var(--yes); }
+  .roster li.maybe { border-left-color: var(--maybe); }
+  .roster li.no { border-left-color: var(--no); }
+  .roster li.none { color: var(--muted); }
+  .roster .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .roster .tag { font-size: 0.8rem; color: var(--muted); }
+  .roster li.me .name { font-weight: 700; }
+  .comments { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .comments h2 { font-size: 1rem; margin: 0; }
+  .comment-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 12px; }
+  .comment-list .empty { color: var(--muted); font-size: 0.9rem; }
+  .comment-head { display: flex; align-items: baseline; gap: 8px; }
+  .comment-head strong { font-size: 0.95rem; }
+  .comment-head time { font-size: 0.8rem; color: var(--muted); flex: 1; }
+  .comment-body { margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .comment-delete {
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+  .comment-delete:hover { color: var(--no); }
+  .comment-form { margin-top: 14px; display: grid; gap: 8px; }
+  .comment-form textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    resize: vertical;
+  }
+  .comment-form button {
+    justify-self: start;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 10px;
+    background: var(--primary);
+    color: var(--on-primary);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .comment-form button:disabled { opacity: 0.6; cursor: wait; }
   .ask { margin-top: 22px; font-weight: 600; }
   .answers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
   .answers button {
@@ -157,7 +197,7 @@
         <div class="progress"><div id="bar"></div></div>
         <div class="verdict" id="verdict"></div>
 
-        <ul id="roster"></ul>
+        <ul class="roster" id="roster"></ul>
 
         <div id="answerBox" hidden>
           <div class="ask">Kommer du, <span id="myName"></span>?</div>
@@ -172,12 +212,23 @@
         <div class="hint" id="noTokenHint" hidden>
           Öppna din <strong>personliga länk</strong> för att svara. Har du ingen? Fråga den som administrerar gruppen.
         </div>
+
+        <div class="comments">
+          <h2>Kommentarer</h2>
+          <ul class="comment-list" id="comments"></ul>
+          <form class="comment-form" id="commentForm" hidden>
+            <textarea id="commentText" rows="2" maxlength="500" placeholder="Skriv en kommentar, t.ex. &quot;Jag tar med bollar&quot;"></textarea>
+            <button type="submit">Skicka</button>
+          </form>
+          <div class="status" id="commentStatus"></div>
+        </div>
       </div>
     </section>
   </main>
 
 <script>
   const TOKEN_KEY = "innebandy-token";
+  const ADMIN_KEY = "innebandy-admin";
   const ICON = { yes: "🟢", maybe: "🟡", no: "🔴", none: "⚪" };
   const ORDER = { yes: 0, maybe: 1, no: 2, none: 3 };
 
@@ -200,10 +251,48 @@
   }
   const token = loadToken();
 
+  // Är man inloggad som admin i samma webbläsare kan man ta bort alla kommentarer.
+  let adminToken = null;
+  try { adminToken = localStorage.getItem(ADMIN_KEY); } catch {}
+
   function headers() {
     const h = { "Content-Type": "application/json" };
     if (token) h["X-Player-Token"] = token;
+    if (adminToken) h["Authorization"] = "Bearer " + adminToken;
     return h;
+  }
+
+  function timeAgo(iso) {
+    const minutes = Math.round((Date.now() - new Date(iso)) / 60000);
+    if (minutes < 1) return "nyss";
+    if (minutes < 60) return `${minutes} min sedan`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours} tim sedan`;
+    return stockholm(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function renderComments(list) {
+    const ul = $("comments");
+    ul.innerHTML = "";
+    if (!list.length) {
+      ul.append(Object.assign(document.createElement("li"), { className: "empty", textContent: "Inga kommentarer än." }));
+    }
+    for (const c of list) {
+      const li = document.createElement("li");
+      const head = document.createElement("div");
+      head.className = "comment-head";
+      const time = document.createElement("time");
+      time.dateTime = c.created_at;
+      time.textContent = timeAgo(c.created_at);
+      head.append(Object.assign(document.createElement("strong"), { textContent: c.name }), time);
+      if (c.can_delete) {
+        const del = Object.assign(document.createElement("button"), { className: "comment-delete", textContent: "Ta bort" });
+        del.addEventListener("click", () => deleteComment(c.id));
+        head.append(del);
+      }
+      li.append(head, Object.assign(document.createElement("div"), { className: "comment-body", textContent: c.body }));
+      ul.append(li);
+    }
   }
 
   function stockholm(iso, options) {
@@ -266,6 +355,9 @@
       roster.appendChild(li);
     }
 
+    renderComments(data.comments || []);
+    $("commentForm").hidden = !data.me;
+
     $("answerBox").hidden = !data.me;
     $("noTokenHint").hidden = !!data.me;
     if (data.me) {
@@ -311,6 +403,37 @@
     answerButtons.forEach((b) => (b.disabled = false));
   }
 
+  async function postComment(event) {
+    event.preventDefault();
+    const text = $("commentText").value.trim();
+    if (!text || !current || !current.event) return;
+    const btn = $("commentForm").querySelector("button");
+    btn.disabled = true;
+    $("commentStatus").textContent = "";
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ event_id: current.event.id, body: text })
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Något gick fel.");
+      $("commentText").value = "";
+      await refresh();
+    } catch (e) {
+      $("commentStatus").textContent = e.message === "Failed to fetch" ? "Kunde inte nå servern." : e.message;
+      $("commentStatus").className = "status err";
+    }
+    btn.disabled = false;
+  }
+
+  async function deleteComment(id) {
+    if (!confirm("Ta bort kommentaren?")) return;
+    await fetch(`/api/comments/${id}`, { method: "DELETE", headers: headers() });
+    await refresh();
+  }
+
+  $("commentForm").addEventListener("submit", postComment);
   answerButtons.forEach((b) => b.addEventListener("click", () => answer(b.dataset.status)));
   refresh();
   // Uppdatera listan var 15:e sekund medan sidan är synlig.
