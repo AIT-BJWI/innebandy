@@ -14,6 +14,18 @@
       "migrations_dir": "migrations"
     }
   ],
+  // Förhandsversioner (wrangler preview, körs för andra brancher än main)
+  // använder en egen databas så att tester inte rör riktiga anmälningar.
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "innebandy-preview",
+        "database_id": "d4d605a0-fcfc-41ec-a89d-6e25e32cab76",
+        "migrations_dir": "migrations"
+      }
+    ]
+  },
   "observability": {
     "enabled": true
   }
