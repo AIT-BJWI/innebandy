@@ -1,0 +1,13 @@
+{
+  "name": "innebandy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler d1 migrations apply innebandy --local && wrangler dev",
+    "migrate": "wrangler d1 migrations apply innebandy --remote",
+    "deploy": "wrangler d1 migrations apply innebandy --remote && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

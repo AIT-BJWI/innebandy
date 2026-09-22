@@ -1,0 +1,6 @@
+# Kopiera till .dev.vars för lokal utveckling (npm run dev).
+ADMIN_TOKEN=byt-till-ett-langt-hemligt-losenord
+# Valfritt, för mejl:
+# RESEND_API_KEY=
+# NOTIFY_EMAILS=anna@mail.se,bjorn@mail.se
+# FROM_EMAIL=innebandy@din-doman.se

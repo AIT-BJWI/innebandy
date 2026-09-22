@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Innebandy – Admin</title>
+<style>
+  :root {
+    --bg: #0f1720;
+    --card: #16212c;
+    --accent: #4ade80;
+    --text: #e6edf3;
+    --muted: #8b98a5;
+    --danger: #f87171;
+    --border: #24313d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px 16px;
+    min-height: 100vh;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 520px;
+    width: 100%;
+  }
+  h1 { font-size: 1.3rem; margin: 0; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin: 12px 0 6px; }
+  input, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0d1620;
+    color: var(--text);
+    font-size: 1rem;
+    font-family: inherit;
+  }
+  button {
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #06240f;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  button.secondary { background: #24313d; color: var(--text); }
+  button.danger { background: transparent; color: var(--danger); padding: 6px 8px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row input { flex: 1; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  ul { list-style: none; padding: 0; margin: 16px 0 0; }
+  li {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  li:last-child { border-bottom: none; }
+  li .grow { flex: 1; min-width: 0; }
+  li .meta { font-size: 0.8rem; color: var(--muted); }
+  li button { padding: 6px 10px; font-size: 0.85rem; }
+  .msg { margin-top: 10px; font-size: 0.9rem; min-height: 1.2em; }
+  .err { color: var(--danger); }
+  .ok { color: var(--accent); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="row" style="justify-content: space-between;">
+      <h1>🏒 Admin</h1>
+      <button class="secondary" id="logoutBtn" hidden>Logga ut</button>
+    </div>
+    <form id="login">
+      <label for="adminToken">Admin-lösenord</label>
+      <div class="row">
+        <input id="adminToken" type="password" autocomplete="current-password">
+        <button type="submit">Logga in</button>
+      </div>
+      <div class="msg" id="loginMsg"></div>
+    </form>
+  </div>
+
+  <div class="card" id="eventsCard" hidden>
+    <h2>Pass</h2>
+    <div class="grid2">
+      <div>
+        <label for="startsAt">Datum och tid</label>
+        <input id="startsAt" type="datetime-local">
+      </div>
+      <div>
+        <label for="minPlayers">Minst antal spelare</label>
+        <input id="minPlayers" type="number" min="1" max="100" value="6">
+      </div>
+    </div>
+    <label for="location">Plats</label>
+    <input id="location" type="text" maxlength="80" placeholder="t.ex. Västerhallen">
+    <label for="note">Info (valfritt)</label>
+    <textarea id="note" rows="2" maxlength="300" placeholder="t.ex. Ta med både mörk och ljus tröja"></textarea>
+    <div style="margin-top: 12px;"><button id="addEventBtn">Lägg till pass</button></div>
+    <div class="msg" id="eventMsg"></div>
+    <ul id="events"></ul>
+  </div>
+
+  <div class="card" id="playersCard" hidden>
+    <h2>Spelare</h2>
+    <div class="row">
+      <input id="playerName" type="text" maxlength="40" placeholder="Namn">
+      <button id="addPlayerBtn">Lägg till</button>
+    </div>
+    <div class="msg" id="playerMsg"></div>
+    <ul id="players"></ul>
+  </div>
+
+<script>
+  const ADMIN_KEY = "innebandy-admin";
+  const $ = (id) => document.getElementById(id);
+  let adminToken = "";
+  try { adminToken = localStorage.getItem(ADMIN_KEY) || ""; } catch {}
+
+  async function api(path, method = "GET", body) {
+    const res = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + adminToken },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { logout("Fel lösenord."); throw new Error("unauthorized"); }
+    if (!res.ok) throw new Error(data.error || "Något gick fel.");
+    return data;
+  }
+
+  function show(el, text, ok) {
+    el.textContent = text;
+    el.className = "msg " + (ok ? "ok" : "err");
+  }
+
+  function personalLink(token) {
+    return `${location.origin}/?p=${encodeURIComponent(token)}`;
+  }
+
+  function formatStart(iso) {
+    return new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Stockholm",
+      weekday: "short", day: "numeric", month: "short",
+      hour: "2-digit", minute: "2-digit"
+    }).format(new Date(iso));
+  }
+
+  function button(text, cls, onClick) {
+    const b = document.createElement("button");
+    b.textContent = text;
+    if (cls) b.className = cls;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  function textBlock(title, meta) {
+    const div = document.createElement("div");
+    div.className = "grow";
+    const t = document.createElement("div");
+    t.textContent = title;
+    const m = document.createElement("div");
+    m.className = "meta";
+    m.textContent = meta;
+    div.append(t, m);
+    return div;
+  }
+
+  async function loadPlayers() {
+    const { players } = await api("/api/admin/players");
+    const ul = $("players");
+    ul.innerHTML = "";
+    if (!players.length) {
+      ul.innerHTML = '<li class="meta">Inga spelare än.</li>';
+      return;
+    }
+    for (const p of players) {
+      const li = document.createElement("li");
+      li.append(
+        textBlock(p.name, ""),
+        button("Kopiera länk", "secondary", async () => {
+          try {
+            await navigator.clipboard.writeText(personalLink(p.token));
+            show($("playerMsg"), `Länken till ${p.name} är kopierad.`, true);
+          } catch {
+            prompt(`Personlig länk för ${p.name}:`, personalLink(p.token));
+          }
+        }),
+        button("Ny länk", "secondary", async () => {
+          if (!confirm(`Skapa en ny länk för ${p.name}? Den gamla slutar fungera.`)) return;
+          await api(`/api/admin/players/${p.id}`, "POST");
+          show($("playerMsg"), `Ny länk skapad för ${p.name}.`, true);
+          loadPlayers();
+        }),
+        button("✕", "danger", async () => {
+          if (!confirm(`Ta bort ${p.name}? Hens svar raderas också.`)) return;
+          await api(`/api/admin/players/${p.id}`, "DELETE");
+          loadPlayers();
+        })
+      );
+      ul.appendChild(li);
+    }
+  }
+
+  async function loadEvents() {
+    const { events } = await api("/api/admin/events");
+    const ul = $("events");
+    ul.innerHTML = "";
+    if (!events.length) {
+      ul.innerHTML = '<li class="meta">Inga kommande pass.</li>';
+      return;
+    }
+    for (const e of events) {
+      const li = document.createElement("li");
+      const meta = [e.location, `${e.yes}/${e.min_players} ja`].filter(Boolean).join(" · ");
+      li.append(
+        textBlock(formatStart(e.starts_at), meta),
+        button("✕", "danger", async () => {
+          if (!confirm("Ta bort passet och alla svar?")) return;
+          await api(`/api/admin/events/${e.id}`, "DELETE");
+          loadEvents();
+        })
+      );
+      ul.appendChild(li);
+    }
+  }
+
+  async function login() {
+    try {
+      await Promise.all([loadPlayers(), loadEvents()]);
+    } catch (e) {
+      if (e.message !== "unauthorized") show($("loginMsg"), e.message);
+      return;
+    }
+    try { localStorage.setItem(ADMIN_KEY, adminToken); } catch {}
+    $("login").hidden = true;
+    $("logoutBtn").hidden = false;
+    $("eventsCard").hidden = false;
+    $("playersCard").hidden = false;
+  }
+
+  function logout(message) {
+    adminToken = "";
+    try { localStorage.removeItem(ADMIN_KEY); } catch {}
+    $("login").hidden = false;
+    $("logoutBtn").hidden = true;
+    $("eventsCard").hidden = true;
+    $("playersCard").hidden = true;
+    if (message) show($("loginMsg"), message);
+  }
+
+  $("login").addEventListener("submit", (e) => {
+    e.preventDefault();
+    adminToken = $("adminToken").value.trim();
+    if (adminToken) login();
+  });
+  $("logoutBtn").addEventListener("click", () => logout());
+
+  $("addPlayerBtn").addEventListener("click", async () => {
+    const name = $("playerName").value.trim();
+    if (!name) return;
+    try {
+      const { player } = await api("/api/admin/players", "POST", { name });
+      $("playerName").value = "";
+      show($("playerMsg"), `${player.name} är tillagd. Kopiera hens länk och skicka den.`, true);
+      loadPlayers();
+    } catch (e) {
+      show($("playerMsg"), e.message);
+    }
+  });
+  $("playerName").addEventListener("keydown", (e) => { if (e.key === "Enter") $("addPlayerBtn").click(); });
+
+  $("addEventBtn").addEventListener("click", async () => {
+    const value = $("startsAt").value;
+    if (!value) return show($("eventMsg"), "Välj datum och tid.");
+    try {
+      await api("/api/admin/events", "POST", {
+        // datetime-local tolkas i webbläsarens tidszon och skickas som UTC.
+        starts_at: new Date(value).toISOString(),
+        location: $("location").value,
+        note: $("note").value,
+        min_players: Number($("minPlayers").value)
+      });
+      show($("eventMsg"), "Passet är tillagt.", true);
+      $("note").value = "";
+      loadEvents();
+    } catch (e) {
+      show($("eventMsg"), e.message);
+    }
+  });
+
+  if (adminToken) login();
+</script>
+</body>
+</html>

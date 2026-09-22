@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
 <title>Innebandy – Anmälan</title>
 <style>
   :root {
@@ -10,9 +11,12 @@
     --card: #16212c;
     --accent: #4ade80;
     --accent-dim: #22c55e33;
+    --warn: #facc15;
+    --warn-dim: #facc1533;
     --text: #e6edf3;
     --muted: #8b98a5;
     --danger: #f87171;
+    --danger-dim: #f8717133;
     --border: #24313d;
   }
   * { box-sizing: border-box; }
@@ -34,68 +38,42 @@
     max-width: 420px;
     width: 100%;
   }
-  h1 {
-    font-size: 1.3rem;
-    margin: 0 0 4px;
-  }
-  .sub {
-    color: var(--muted);
-    font-size: 0.9rem;
-    margin-bottom: 20px;
-  }
-  label {
-    display: block;
-    font-size: 0.85rem;
-    color: var(--muted);
-    margin: 16px 0 6px;
-  }
-  select, input {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 8px;
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 0.9rem; }
+  .when { font-size: 1.05rem; font-weight: 600; margin-top: 12px; }
+  .when::first-letter { text-transform: uppercase; }
+  .note { margin-top: 8px; font-size: 0.9rem; color: var(--muted); white-space: pre-wrap; }
+  .question { margin-top: 24px; font-size: 0.95rem; }
+  .answers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .answers button {
+    padding: 12px 0;
     border: 1px solid var(--border);
+    border-radius: 8px;
     background: #0d1620;
     color: var(--text);
-    font-size: 1rem;
-  }
-  button {
-    margin-top: 20px;
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    background: var(--accent);
-    color: #06240f;
     font-weight: 600;
     font-size: 1rem;
     cursor: pointer;
   }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
-  .status {
-    margin-top: 16px;
-    font-size: 0.9rem;
-    min-height: 20px;
-  }
+  .answers button:disabled { opacity: 0.6; cursor: wait; }
+  .answers button[data-status="yes"].active { background: var(--accent); border-color: var(--accent); color: #06240f; }
+  .answers button[data-status="maybe"].active { background: var(--warn); border-color: var(--warn); color: #2a2303; }
+  .answers button[data-status="no"].active { background: var(--danger); border-color: var(--danger); color: #2a0808; }
+  .status { margin-top: 12px; font-size: 0.9rem; min-height: 20px; }
   .ok { color: var(--accent); }
   .err { color: var(--danger); }
-  .list {
+  .hint {
     margin-top: 24px;
-    border-top: 1px solid var(--border);
-    padding-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    background: #0d1620;
+    border: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: var(--muted);
   }
-  .count {
-    font-size: 1.6rem;
-    font-weight: 700;
-  }
+  .list { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .count { font-size: 1.6rem; font-weight: 700; }
   .count span { font-size: 1rem; color: var(--muted); font-weight: 400; }
-  ul { list-style: none; padding: 0; margin: 10px 0 0; }
-  li {
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-  }
-  li:last-child { border-bottom: none; }
   .badge {
     display: inline-block;
     margin-top: 10px;
@@ -105,130 +83,187 @@
     background: var(--accent-dim);
     color: var(--accent);
   }
-  .badge.low { background: #f8717133; color: var(--danger); }
+  .badge.low { background: var(--danger-dim); color: var(--danger); }
+  h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 20px 0 4px; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  li:last-child { border-bottom: none; }
+  li.me { font-weight: 600; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
   <div class="card">
-    <h1>🏒 Innebandy – nästa pass</h1>
-    <div class="sub">Anmäl dig så ser alla direkt hur många vi blir.</div>
+    <h1>🏒 Innebandy</h1>
+    <div class="sub" id="loading">Laddar…</div>
 
-    <label for="name">Namn</label>
-    <select id="name">
-      <option value="">Välj ditt namn…</option>
-    </select>
-    <input id="customName" type="text" placeholder="…eller skriv nytt namn" style="margin-top:8px;">
+    <div id="noEvent" hidden>
+      <div class="sub">Inget pass är inlagt just nu.</div>
+    </div>
 
-    <button id="submitBtn">Anmäl mig</button>
-    <div class="status" id="status"></div>
+    <div id="eventBox" hidden>
+      <div class="when" id="when"></div>
+      <div class="sub" id="location"></div>
+      <div class="note" id="note"></div>
 
-    <div class="list">
-      <div class="count" id="count">– <span>anmälda</span></div>
-      <div class="badge" id="badge"></div>
-      <ul id="players"></ul>
-      <button id="unregisterBtn" style="display:none; margin-top:16px; background:#24313d; color:var(--text);">Anmäl av mig</button>
+      <div id="answerBox" hidden>
+        <div class="question">Hej <strong id="myName"></strong>! Kommer du?</div>
+        <div class="answers">
+          <button data-status="yes">Ja</button>
+          <button data-status="maybe">Kanske</button>
+          <button data-status="no">Nej</button>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="hint" id="noTokenHint" hidden>
+        Öppna din <strong>personliga länk</strong> för att svara. Har du ingen? Fråga den som administrerar gruppen.
+      </div>
+
+      <div class="list">
+        <div class="count" id="count"></div>
+        <div class="badge" id="badge"></div>
+        <div id="groups"></div>
+      </div>
     </div>
   </div>
 
 <script>
-  // Justera listan till era 8 spelare, eller lämna tom och låt alla skriva eget namn.
-  const KNOWN_PLAYERS = ["Anna", "Björn", "Erik", "Johan", "Karin", "Lisa", "Marcus", "Sara"];
-  const MIN_PLAYERS = 6; // hur många som behövs för att det ska bli av
+  const TOKEN_KEY = "innebandy-token";
+  const GROUPS = [
+    { status: "yes", title: "Kommer" },
+    { status: "maybe", title: "Kanske" },
+    { status: "no", title: "Kommer inte" },
+    { status: null, title: "Inte svarat" }
+  ];
 
-  const nameSelect = document.getElementById("name");
-  const customName = document.getElementById("customName");
-  const statusEl = document.getElementById("status");
-  const countEl = document.getElementById("count");
-  const badgeEl = document.getElementById("badge");
-  const playersEl = document.getElementById("players");
-  const submitBtn = document.getElementById("submitBtn");
-  const unregisterBtn = document.getElementById("unregisterBtn");
+  const $ = (id) => document.getElementById(id);
+  const answerButtons = document.querySelectorAll(".answers button");
+  let current = null;
 
-  KNOWN_PLAYERS.forEach(n => {
-    const opt = document.createElement("option");
-    opt.value = n;
-    opt.textContent = n;
-    nameSelect.appendChild(opt);
-  });
+  // Personlig länk: /?p=<token>. Spara token och städa bort den ur adressfältet.
+  function loadToken() {
+    const params = new URLSearchParams(location.search);
+    const fromUrl = params.get("p");
+    if (fromUrl) {
+      try { localStorage.setItem(TOKEN_KEY, fromUrl); } catch {}
+      params.delete("p");
+      const rest = params.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+      return fromUrl;
+    }
+    try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+  }
+  const token = loadToken();
 
-  function currentName() {
-    return customName.value.trim() || nameSelect.value;
+  function headers() {
+    const h = { "Content-Type": "application/json" };
+    if (token) h["X-Player-Token"] = token;
+    return h;
   }
 
-  async function refreshList() {
-    try {
-      const res = await fetch("/api/list");
-      const data = await res.json();
-      playersEl.innerHTML = "";
-      data.players.forEach(p => {
+  function formatStart(iso) {
+    return new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Stockholm",
+      weekday: "long", day: "numeric", month: "long",
+      hour: "2-digit", minute: "2-digit"
+    }).format(new Date(iso));
+  }
+
+  function render(data) {
+    current = data;
+    $("loading").hidden = true;
+    $("noEvent").hidden = !!data.event;
+    $("eventBox").hidden = !data.event;
+    if (!data.event) return;
+
+    const e = data.event;
+    $("when").textContent = formatStart(e.starts_at);
+    $("location").textContent = e.location ? "📍 " + e.location : "";
+    $("note").textContent = e.note || "";
+
+    $("answerBox").hidden = !data.me;
+    $("noTokenHint").hidden = !!data.me;
+    if (data.me) {
+      $("myName").textContent = data.me.name;
+      answerButtons.forEach((b) => b.classList.toggle("active", b.dataset.status === data.me.status));
+    }
+
+    const yes = data.players.filter((p) => p.status === "yes").length;
+    $("count").innerHTML = "";
+    $("count").append(String(yes), Object.assign(document.createElement("span"), {
+      textContent: ` av ${e.min_players}+ som behövs`
+    }));
+    const badge = $("badge");
+    if (yes >= e.min_players) {
+      badge.textContent = "Blir av! ✅";
+      badge.classList.remove("low");
+    } else {
+      badge.textContent = `${e.min_players - yes} till behövs`;
+      badge.classList.add("low");
+    }
+
+    const groups = $("groups");
+    groups.innerHTML = "";
+    for (const g of GROUPS) {
+      const people = data.players.filter((p) => p.status === g.status);
+      if (!people.length) continue;
+      const h = document.createElement("h2");
+      h.textContent = `${g.title} (${people.length})`;
+      const ul = document.createElement("ul");
+      for (const p of people) {
         const li = document.createElement("li");
-        li.textContent = p;
-        playersEl.appendChild(li);
-      });
-      countEl.innerHTML = `${data.players.length} <span>av ${MIN_PLAYERS}+ som behövs</span>`;
-      if (data.players.length >= MIN_PLAYERS) {
-        badgeEl.textContent = "Blir av! ✅";
-        badgeEl.classList.remove("low");
-      } else {
-        badgeEl.textContent = `${MIN_PLAYERS - data.players.length} till behövs`;
-        badgeEl.classList.add("low");
+        li.textContent = p.name;
+        if (data.me && p.name === data.me.name) li.className = "me";
+        ul.appendChild(li);
       }
-      const me = currentName();
-      unregisterBtn.style.display = me && data.players.includes(me) ? "block" : "none";
-    } catch (e) {
-      countEl.textContent = "Kunde inte hämta listan";
+      groups.append(h, ul);
     }
   }
 
-  async function signup() {
-    const name = currentName();
-    if (!name) {
-      statusEl.textContent = "Välj eller skriv ett namn först.";
-      statusEl.className = "status err";
-      return;
+  async function refresh() {
+    try {
+      const res = await fetch("/api/event", { headers: headers() });
+      render(await res.json());
+    } catch {
+      $("loading").hidden = false;
+      $("loading").textContent = "Kunde inte hämta passet. Försöker igen…";
     }
-    submitBtn.disabled = true;
-    statusEl.textContent = "Skickar…";
+  }
+
+  async function answer(status) {
+    if (!current || !current.event) return;
+    const statusEl = $("status");
+    answerButtons.forEach((b) => (b.disabled = true));
+    statusEl.textContent = "Sparar…";
     statusEl.className = "status";
     try {
-      const res = await fetch("/api/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name })
+      const res = await fetch("/api/response", {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ event_id: current.event.id, status })
       });
       const data = await res.json();
       if (data.ok) {
-        statusEl.textContent = "Du är anmäld! 🎉";
+        statusEl.textContent = { yes: "Kul, vi ses! 🎉", maybe: "Noterat – svara gärna ja eller nej när du vet.", no: "Tråkigt, vi ses nästa gång!" }[status];
         statusEl.className = "status ok";
-        await refreshList();
+        await refresh();
       } else {
         statusEl.textContent = data.error || "Något gick fel.";
         statusEl.className = "status err";
       }
-    } catch (e) {
+    } catch {
       statusEl.textContent = "Kunde inte nå servern.";
       statusEl.className = "status err";
     }
-    submitBtn.disabled = false;
+    answerButtons.forEach((b) => (b.disabled = false));
   }
 
-  async function unregister() {
-    const name = currentName();
-    if (!name) return;
-    await fetch("/api/signup", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
-    });
-    statusEl.textContent = "Du är avanmäld.";
-    statusEl.className = "status";
-    await refreshList();
-  }
-
-  submitBtn.addEventListener("click", signup);
-  unregisterBtn.addEventListener("click", unregister);
-  refreshList();
-  setInterval(refreshList, 15000); // auto-uppdatera listan var 15:e sekund
+  answerButtons.forEach((b) => b.addEventListener("click", () => answer(b.dataset.status)));
+  refresh();
+  // Uppdatera listan var 15:e sekund medan sidan är synlig.
+  setInterval(() => { if (!document.hidden) refresh(); }, 15000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 </script>
 </body>
 </html>

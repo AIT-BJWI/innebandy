@@ -6,10 +6,15 @@
     "directory": "./public",
     "binding": "ASSETS"
   },
-  "kv_namespaces": [
+  "d1_databases": [
     {
-      "binding": "SIGNUPS",
-      "id": "1c5440a89c9e487b8840fae5634d5f41"
+      "binding": "DB",
+      "database_name": "innebandy",
+      "database_id": "c6ebe9de-7c9b-45d6-84bb-10e50d156364",
+      "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "observability": {
+    "enabled": true
+  }
 }
