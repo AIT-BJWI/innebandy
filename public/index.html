@@ -7,18 +7,35 @@
 <title>Innebandy – Anmälan</title>
 <style>
   :root {
-    --bg: #0f1720;
-    --card: #16212c;
-    --accent: #4ade80;
-    --accent-dim: #22c55e33;
-    --warn: #facc15;
-    --warn-dim: #facc1533;
-    --text: #e6edf3;
-    --muted: #8b98a5;
-    --danger: #f87171;
-    --danger-dim: #f8717133;
-    --border: #24313d;
-    color-scheme: dark;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --row: #f5f6f8;
+    --text: #1b1f24;
+    --muted: #6b7280;
+    --border: #e3e5e9;
+    --yes: #4a9d5f;
+    --maybe: #e0b021;
+    --no: #cc5a55;
+    --none: #b5bac2;
+    --track: #eceef1;
+    --primary: #1b1f24;
+    --on-primary: #ffffff;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1419;
+      --surface: #171d24;
+      --row: #1e252d;
+      --text: #e7ebef;
+      --muted: #939ca7;
+      --border: #28313b;
+      --track: #28313b;
+      --none: #5b6571;
+      --primary: #e7ebef;
+      --on-primary: #11161b;
+      color-scheme: dark;
+    }
   }
   * { box-sizing: border-box; }
   body {
@@ -26,130 +43,143 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: var(--bg);
     color: var(--text);
-    display: flex;
-    justify-content: center;
-    padding: 32px 16px;
     min-height: 100vh;
   }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px;
-    max-width: 420px;
-    width: 100%;
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
   }
-  h1 { font-size: 1.3rem; margin: 0 0 4px; }
-  .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .brand { font-size: 1.25rem; font-weight: 800; }
   .admin-link {
-    font-size: 0.8rem;
-    color: var(--muted);
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: var(--row);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
     text-decoration: none;
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
   }
-  .admin-link:hover { color: var(--text); border-color: var(--muted); }
-  .sub { color: var(--muted); font-size: 0.9rem; }
-  .when { font-size: 1.05rem; font-weight: 600; margin-top: 12px; }
-  .when::first-letter { text-transform: uppercase; }
-  .note { margin-top: 8px; font-size: 0.9rem; color: var(--muted); white-space: pre-wrap; }
-  .question { margin-top: 24px; font-size: 0.95rem; }
+  .admin-link:hover { background: var(--border); }
+  main { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 8px; }
+  .lead { color: var(--muted); margin: 0 0 20px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px;
+  }
+  .date { font-size: 1.3rem; font-weight: 800; }
+  .meta { color: var(--muted); margin-top: 2px; }
+  .note { margin-top: 10px; font-size: 0.95rem; white-space: pre-wrap; }
+  .count { margin-top: 18px; font-weight: 700; }
+  .progress {
+    height: 10px;
+    margin-top: 10px;
+    border-radius: 999px;
+    background: var(--track);
+    overflow: hidden;
+  }
+  .progress > div { height: 100%; width: 0; background: var(--yes); border-radius: 999px; transition: width 0.3s; }
+  .verdict { margin-top: 14px; }
+  .verdict span { color: var(--muted); }
+  ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    background: var(--row);
+    border-left: 4px solid var(--none);
+  }
+  li.yes { border-left-color: var(--yes); }
+  li.maybe { border-left-color: var(--maybe); }
+  li.no { border-left-color: var(--no); }
+  li.none { color: var(--muted); }
+  li .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li .tag { font-size: 0.8rem; color: var(--muted); }
+  li.me .name { font-weight: 700; }
+  .ask { margin-top: 22px; font-weight: 600; }
   .answers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
   .answers button {
-    padding: 12px 0;
+    padding: 12px 4px;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #0d1620;
+    border-radius: 10px;
+    background: var(--surface);
     color: var(--text);
+    font-size: 0.95rem;
     font-weight: 600;
-    font-size: 1rem;
     cursor: pointer;
   }
   .answers button:disabled { opacity: 0.6; cursor: wait; }
-  .answers button[data-status="yes"].active { background: var(--accent); border-color: var(--accent); color: #06240f; }
-  .answers button[data-status="maybe"].active { background: var(--warn); border-color: var(--warn); color: #2a2303; }
-  .answers button[data-status="no"].active { background: var(--danger); border-color: var(--danger); color: #2a0808; }
-  .status { margin-top: 12px; font-size: 0.9rem; min-height: 20px; }
-  .ok { color: var(--accent); }
-  .err { color: var(--danger); }
+  .answers button.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+  .status { margin-top: 10px; min-height: 1.3em; font-size: 0.9rem; color: var(--muted); }
+  .status.err { color: var(--no); }
   .hint {
-    margin-top: 24px;
-    padding: 12px;
-    border-radius: 8px;
-    background: #0d1620;
-    border: 1px solid var(--border);
-    font-size: 0.9rem;
+    margin-top: 20px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--row);
     color: var(--muted);
+    font-size: 0.9rem;
   }
-  .list { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; }
-  .count { font-size: 1.6rem; font-weight: 700; }
-  .count span { font-size: 1rem; color: var(--muted); font-weight: 400; }
-  .badge {
-    display: inline-block;
-    margin-top: 10px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    background: var(--accent-dim);
-    color: var(--accent);
-  }
-  .badge.low { background: var(--danger-dim); color: var(--danger); }
-  h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 20px 0 4px; }
-  ul { list-style: none; padding: 0; margin: 0; }
-  li { padding: 6px 0; border-bottom: 1px solid var(--border); }
-  li:last-child { border-bottom: none; }
-  li.me { font-weight: 600; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-  <div class="card">
-    <div class="header">
-      <h1>🏒 Innebandy</h1>
-      <a class="admin-link" href="/admin">⚙️ Admin</a>
-    </div>
-    <div class="sub" id="loading">Laddar…</div>
+  <header class="topbar">
+    <div class="brand">🏒 Innebandy</div>
+    <a class="admin-link" href="/admin">Admin</a>
+  </header>
 
-    <div id="noEvent" hidden>
-      <div class="sub">Inget pass är inlagt just nu.</div>
-    </div>
+  <main>
+    <h1>Kommande innebandy</h1>
+    <p class="lead">Anmäl dig enkelt – ingen app behövs.</p>
 
-    <div id="eventBox" hidden>
-      <div class="when" id="when"></div>
-      <div class="sub" id="location"></div>
-      <div class="note" id="note"></div>
-
-      <div id="answerBox" hidden>
-        <div class="question">Hej <strong id="myName"></strong>! Kommer du?</div>
-        <div class="answers">
-          <button data-status="yes">Ja</button>
-          <button data-status="maybe">Kanske</button>
-          <button data-status="no">Nej</button>
-        </div>
-        <div class="status" id="status"></div>
+    <section class="card">
+      <div class="meta" id="loading">Laddar…</div>
+      <div id="noEvent" hidden>
+        <div class="date">Inget pass inlagt</div>
+        <div class="meta">Nästa pass dyker upp här när det är bokat.</div>
       </div>
 
-      <div class="hint" id="noTokenHint" hidden>
-        Öppna din <strong>personliga länk</strong> för att svara. Har du ingen? Fråga den som administrerar gruppen.
-      </div>
+      <div id="eventBox" hidden>
+        <div class="date" id="date"></div>
+        <div class="meta" id="meta"></div>
+        <div class="note" id="note" hidden></div>
 
-      <div class="list">
         <div class="count" id="count"></div>
-        <div class="badge" id="badge"></div>
-        <div id="groups"></div>
+        <div class="progress"><div id="bar"></div></div>
+        <div class="verdict" id="verdict"></div>
+
+        <ul id="roster"></ul>
+
+        <div id="answerBox" hidden>
+          <div class="ask">Kommer du, <span id="myName"></span>?</div>
+          <div class="answers">
+            <button data-status="yes">🟢 Kommer</button>
+            <button data-status="maybe">🟡 Kanske</button>
+            <button data-status="no">🔴 Kan inte</button>
+          </div>
+          <div class="status" id="status"></div>
+        </div>
+
+        <div class="hint" id="noTokenHint" hidden>
+          Öppna din <strong>personliga länk</strong> för att svara. Har du ingen? Fråga den som administrerar gruppen.
+        </div>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
 <script>
   const TOKEN_KEY = "innebandy-token";
-  const GROUPS = [
-    { status: "yes", title: "Kommer" },
-    { status: "maybe", title: "Kanske" },
-    { status: "no", title: "Kommer inte" },
-    { status: null, title: "Inte svarat" }
-  ];
+  const ICON = { yes: "🟢", maybe: "🟡", no: "🔴", none: "⚪" };
+  const ORDER = { yes: 0, maybe: 1, no: 2, none: 3 };
 
   const $ = (id) => document.getElementById(id);
   const answerButtons = document.querySelectorAll(".answers button");
@@ -176,12 +206,8 @@
     return h;
   }
 
-  function formatStart(iso) {
-    return new Intl.DateTimeFormat("sv-SE", {
-      timeZone: "Europe/Stockholm",
-      weekday: "long", day: "numeric", month: "long",
-      hour: "2-digit", minute: "2-digit"
-    }).format(new Date(iso));
+  function stockholm(iso, options) {
+    return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm", ...options }).format(new Date(iso));
   }
 
   function render(data) {
@@ -192,46 +218,59 @@
     if (!data.event) return;
 
     const e = data.event;
-    $("when").textContent = formatStart(e.starts_at);
-    $("location").textContent = e.location ? "📍 " + e.location : "";
+    $("date").textContent = stockholm(e.starts_at, { weekday: "long", day: "numeric", month: "long" });
+    const time = stockholm(e.starts_at, { hour: "2-digit", minute: "2-digit" });
+    $("meta").textContent = e.location ? `${time} · ${e.location}` : time;
+    $("note").hidden = !e.note;
     $("note").textContent = e.note || "";
+
+    const yes = data.players.filter((p) => p.status === "yes").length;
+    $("count").textContent = `${yes} kommer`;
+    $("bar").style.width = Math.min(100, (yes / e.min_players) * 100) + "%";
+
+    const verdict = $("verdict");
+    verdict.innerHTML = "";
+    const strong = document.createElement("strong");
+    const extra = document.createElement("span");
+    extra.textContent = ` (minst ${e.min_players})`;
+    if (yes >= e.min_players) {
+      strong.textContent = "Blir av!";
+      verdict.append("🟢 ", strong, extra);
+    } else {
+      strong.textContent = `Behöver ${e.min_players - yes} till`;
+      verdict.append("🟡 ", strong, extra);
+    }
+
+    const roster = $("roster");
+    roster.innerHTML = "";
+    const sorted = [...data.players].sort(
+      (a, b) => ORDER[a.status || "none"] - ORDER[b.status || "none"]
+    );
+    for (const p of sorted) {
+      const status = p.status || "none";
+      const li = document.createElement("li");
+      li.className = status;
+      const icon = document.createElement("span");
+      icon.textContent = ICON[status];
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = p.name;
+      li.append(icon, name);
+      if (status === "none") {
+        li.append(Object.assign(document.createElement("span"), { className: "tag", textContent: "inte svarat" }));
+      }
+      if (data.me && p.name === data.me.name) {
+        li.classList.add("me");
+        li.append(Object.assign(document.createElement("span"), { className: "tag", textContent: "du" }));
+      }
+      roster.appendChild(li);
+    }
 
     $("answerBox").hidden = !data.me;
     $("noTokenHint").hidden = !!data.me;
     if (data.me) {
       $("myName").textContent = data.me.name;
       answerButtons.forEach((b) => b.classList.toggle("active", b.dataset.status === data.me.status));
-    }
-
-    const yes = data.players.filter((p) => p.status === "yes").length;
-    $("count").innerHTML = "";
-    $("count").append(String(yes), Object.assign(document.createElement("span"), {
-      textContent: ` av ${e.min_players}+ som behövs`
-    }));
-    const badge = $("badge");
-    if (yes >= e.min_players) {
-      badge.textContent = "Blir av! ✅";
-      badge.classList.remove("low");
-    } else {
-      badge.textContent = `${e.min_players - yes} till behövs`;
-      badge.classList.add("low");
-    }
-
-    const groups = $("groups");
-    groups.innerHTML = "";
-    for (const g of GROUPS) {
-      const people = data.players.filter((p) => p.status === g.status);
-      if (!people.length) continue;
-      const h = document.createElement("h2");
-      h.textContent = `${g.title} (${people.length})`;
-      const ul = document.createElement("ul");
-      for (const p of people) {
-        const li = document.createElement("li");
-        li.textContent = p.name;
-        if (data.me && p.name === data.me.name) li.className = "me";
-        ul.appendChild(li);
-      }
-      groups.append(h, ul);
     }
   }
 
@@ -260,7 +299,6 @@
       const data = await res.json();
       if (data.ok) {
         statusEl.textContent = { yes: "Kul, vi ses! 🎉", maybe: "Noterat – svara gärna ja eller nej när du vet.", no: "Tråkigt, vi ses nästa gång!" }[status];
-        statusEl.className = "status ok";
         await refresh();
       } else {
         statusEl.textContent = data.error || "Något gick fel.";
