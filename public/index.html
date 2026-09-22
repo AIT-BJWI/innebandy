@@ -39,6 +39,16 @@
     width: 100%;
   }
   h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .admin-link {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+  .admin-link:hover { color: var(--text); border-color: var(--muted); }
   .sub { color: var(--muted); font-size: 0.9rem; }
   .when { font-size: 1.05rem; font-weight: 600; margin-top: 12px; }
   .when::first-letter { text-transform: uppercase; }
@@ -94,7 +104,10 @@
 </head>
 <body>
   <div class="card">
-    <h1>🏒 Innebandy</h1>
+    <div class="header">
+      <h1>🏒 Innebandy</h1>
+      <a class="admin-link" href="/admin">⚙️ Admin</a>
+    </div>
     <div class="sub" id="loading">Laddar…</div>
 
     <div id="noEvent" hidden>
