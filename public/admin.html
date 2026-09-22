@@ -113,9 +113,12 @@
   .row { display: flex; gap: 8px; align-items: center; }
   .row input { flex: 1; }
   .grid2 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 0 12px; }
+  .grid2.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   @media (max-width: 480px) {
-    .grid2 { grid-template-columns: minmax(0, 1fr); }
+    .grid2, .grid2.even { grid-template-columns: minmax(0, 1fr); }
   }
+  .help { color: var(--muted); font-size: 0.9rem; margin: 0; }
+  li.cancelled .grow > div:first-child { text-decoration: line-through; color: var(--muted); }
   .actions { margin-top: 14px; }
   ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
   li {
@@ -184,12 +187,58 @@
     <ul id="events"></ul>
   </div>
 
+  <div class="card" id="seriesCard" hidden>
+    <h2>Återkommande pass</h2>
+    <p class="help">Pass skapas automatiskt två veckor framåt. Enskilda tillfällen kan ställas in under Pass.</p>
+    <div class="grid2 even">
+      <div>
+        <label for="seriesWeekday">Veckodag</label>
+        <select id="seriesWeekday">
+          <option value="1">Måndagar</option>
+          <option value="2">Tisdagar</option>
+          <option value="3">Onsdagar</option>
+          <option value="4">Torsdagar</option>
+          <option value="5">Fredagar</option>
+          <option value="6">Lördagar</option>
+          <option value="7">Söndagar</option>
+        </select>
+      </div>
+      <div>
+        <label for="seriesTime">Tid</label>
+        <input id="seriesTime" type="time" value="19:30">
+      </div>
+    </div>
+    <div class="grid2">
+      <div>
+        <label for="seriesLocation">Plats</label>
+        <input id="seriesLocation" type="text" maxlength="80" placeholder="t.ex. Fabriken">
+      </div>
+      <div>
+        <label for="seriesMin">Minst antal spelare</label>
+        <input id="seriesMin" type="number" min="1" max="100" value="6">
+      </div>
+    </div>
+    <label for="seriesNote">Info (valfritt)</label>
+    <textarea id="seriesNote" rows="2" maxlength="300"></textarea>
+    <div class="actions"><button id="addSeriesBtn">Lägg till återkommande pass</button></div>
+    <div class="msg" id="seriesMsg"></div>
+    <ul id="series"></ul>
+  </div>
+
   <div class="card" id="playersCard" hidden>
     <h2>Spelare</h2>
-    <div class="row">
-      <input id="playerName" type="text" maxlength="40" placeholder="Namn">
-      <button id="addPlayerBtn">Lägg till</button>
+    <p class="help">Med e-post får spelaren en påminnelse dagen innan, med sin personliga länk.</p>
+    <div class="grid2 even">
+      <div>
+        <label for="playerName">Namn</label>
+        <input id="playerName" type="text" maxlength="40">
+      </div>
+      <div>
+        <label for="playerEmail">E-post (valfritt)</label>
+        <input id="playerEmail" type="email" maxlength="120" autocomplete="off">
+      </div>
     </div>
+    <div class="actions"><button id="addPlayerBtn">Lägg till spelare</button></div>
     <div class="msg" id="playerMsg"></div>
     <ul id="players"></ul>
   </div>
@@ -197,6 +246,7 @@
 
 <script>
   const ADMIN_KEY = "innebandy-admin";
+  const WEEKDAYS = ["måndagar", "tisdagar", "onsdagar", "torsdagar", "fredagar", "lördagar", "söndagar"];
   const $ = (id) => document.getElementById(id);
   let adminToken = "";
   try { adminToken = localStorage.getItem(ADMIN_KEY) || ""; } catch {}
@@ -261,13 +311,24 @@
     for (const p of players) {
       const li = document.createElement("li");
       li.append(
-        textBlock(p.name, ""),
+        textBlock(p.name, p.email || "ingen e-post"),
         button("Kopiera länk", "secondary", async () => {
           try {
             await navigator.clipboard.writeText(personalLink(p.token));
             show($("playerMsg"), `Länken till ${p.name} är kopierad.`, true);
           } catch {
             prompt(`Personlig länk för ${p.name}:`, personalLink(p.token));
+          }
+        }),
+        button("E-post", "secondary", async () => {
+          const email = prompt(`E-post för ${p.name} (lämna tomt för att ta bort):`, p.email || "");
+          if (email === null) return;
+          try {
+            await api(`/api/admin/players/${p.id}`, "PATCH", { email });
+            show($("playerMsg"), `E-post för ${p.name} är sparad.`, true);
+            loadPlayers();
+          } catch (e) {
+            show($("playerMsg"), e.message);
           }
         }),
         button("Ny länk", "secondary", async () => {
@@ -296,12 +357,51 @@
     }
     for (const e of events) {
       const li = document.createElement("li");
-      const meta = [e.location, `${e.yes}/${e.min_players} ja`].filter(Boolean).join(" · ");
-      li.append(
-        textBlock(formatStart(e.starts_at), meta),
-        button("✕", "danger", async () => {
+      if (e.cancelled) li.className = "cancelled";
+      const meta = [e.cancelled ? "Inställt" : "", e.location, `${e.yes}/${e.min_players} ja`, e.series_id ? "återkommande" : ""]
+        .filter(Boolean).join(" · ");
+      li.append(textBlock(formatStart(e.starts_at), meta));
+      if (e.series_id) {
+        // Seriepass tas inte bort (då skulle de skapas igen) utan ställs in.
+        li.append(e.cancelled
+          ? button("Återställ", "secondary", async () => {
+              await api(`/api/admin/events/${e.id}`, "PATCH", { cancelled: false });
+              loadEvents();
+            })
+          : button("Ställ in", "secondary", async () => {
+              if (!confirm("Ställa in passet? Det försvinner från anmälningssidan.")) return;
+              await api(`/api/admin/events/${e.id}`, "PATCH", { cancelled: true });
+              loadEvents();
+            }));
+      } else {
+        li.append(button("✕", "danger", async () => {
           if (!confirm("Ta bort passet och alla svar?")) return;
           await api(`/api/admin/events/${e.id}`, "DELETE");
+          loadEvents();
+        }));
+      }
+      ul.appendChild(li);
+    }
+  }
+
+  async function loadSeries() {
+    const { series } = await api("/api/admin/series");
+    const ul = $("series");
+    ul.innerHTML = "";
+    if (!series.length) {
+      ul.innerHTML = '<li class="empty">Inga återkommande pass.</li>';
+      return;
+    }
+    for (const s of series) {
+      const li = document.createElement("li");
+      const title = `${WEEKDAYS[s.weekday - 1][0].toUpperCase()}${WEEKDAYS[s.weekday - 1].slice(1)} ${s.time}`;
+      const meta = [s.location, `minst ${s.min_players}`].filter(Boolean).join(" · ");
+      li.append(
+        textBlock(title, meta),
+        button("✕", "danger", async () => {
+          if (!confirm(`Ta bort ${WEEKDAYS[s.weekday - 1]} ${s.time}? Kommande pass i serien tas också bort.`)) return;
+          await api(`/api/admin/series/${s.id}`, "DELETE");
+          loadSeries();
           loadEvents();
         })
       );
@@ -311,7 +411,7 @@
 
   async function login() {
     try {
-      await Promise.all([loadPlayers(), loadEvents()]);
+      await Promise.all([loadPlayers(), loadEvents(), loadSeries()]);
     } catch (e) {
       if (e.message !== "unauthorized") show($("loginMsg"), e.message);
       return;
@@ -320,6 +420,7 @@
     $("loginCard").hidden = true;
     $("logoutBtn").hidden = false;
     $("eventsCard").hidden = false;
+    $("seriesCard").hidden = false;
     $("playersCard").hidden = false;
   }
 
@@ -329,6 +430,7 @@
     $("loginCard").hidden = false;
     $("logoutBtn").hidden = true;
     $("eventsCard").hidden = true;
+    $("seriesCard").hidden = true;
     $("playersCard").hidden = true;
     if (message) show($("loginMsg"), message);
   }
@@ -348,15 +450,36 @@
     const name = $("playerName").value.trim();
     if (!name) return;
     try {
-      const { player } = await api("/api/admin/players", "POST", { name });
+      const { player } = await api("/api/admin/players", "POST", { name, email: $("playerEmail").value });
       $("playerName").value = "";
+      $("playerEmail").value = "";
       show($("playerMsg"), `${player.name} är tillagd. Kopiera hens länk och skicka den.`, true);
       loadPlayers();
     } catch (e) {
       show($("playerMsg"), e.message);
     }
   });
-  $("playerName").addEventListener("keydown", (e) => { if (e.key === "Enter") $("addPlayerBtn").click(); });
+  for (const id of ["playerName", "playerEmail"]) {
+    $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") $("addPlayerBtn").click(); });
+  }
+
+  $("addSeriesBtn").addEventListener("click", async () => {
+    try {
+      await api("/api/admin/series", "POST", {
+        weekday: Number($("seriesWeekday").value),
+        time: $("seriesTime").value,
+        location: $("seriesLocation").value,
+        note: $("seriesNote").value,
+        min_players: Number($("seriesMin").value)
+      });
+      show($("seriesMsg"), "Återkommande pass tillagt. De närmaste passen syns under Pass.", true);
+      $("seriesNote").value = "";
+      loadSeries();
+      loadEvents();
+    } catch (e) {
+      show($("seriesMsg"), e.message);
+    }
+  });
 
   $("addEventBtn").addEventListener("click", async () => {
     const value = $("startsAt").value;

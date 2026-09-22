@@ -26,6 +26,14 @@
       }
     ]
   },
+  // Varje timme: fyll på återkommande pass och skicka påminnelser dagen innan.
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  "vars": {
+    // Används för personliga länkar i påminnelsemejlen.
+    "SITE_URL": "https://innebandy.wiklund-bjorn.workers.dev"
+  },
   "observability": {
     "enabled": true
   }
