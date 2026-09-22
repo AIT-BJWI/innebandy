@@ -1,0 +1,15 @@
+{
+  "name": "innebandy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SIGNUPS",
+      "id": "1c5440a89c9e487b8840fae5634d5f41"
+    }
+  ]
+}

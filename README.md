@@ -1,57 +1,51 @@
-# Innebandy-anmälan – gratis, reklamfri, på Cloudflare Pages
+# Innebandy-anmälan – gratis, reklamfri, på Cloudflare Workers
 
-En liten sida där ni 8 anmäler er till nästa pass. Listan nollställs
-automatiskt varje ny vecka (ingen manuell "reset" behövs). Valfritt:
-skicka ett mejl till gruppen varje gång någon anmäler sig.
+Uppdaterad version. Cloudflares nya enhetliga Workers-modell kräver att
+API-logiken ligger i en enda "Worker"-fil och att bindningar (som KV)
+deklareras i en `wrangler.jsonc`-fil i repot, istället för att bara
+klickas ihop i dashboarden. Annars ger Cloudflare felet
+"Bindings cannot be added to a Worker that only has static assets."
 
 ## Filer
 ```
-public/index.html        ← själva sidan (formulär + lista)
-functions/api/list.js     ← hämtar aktuell veckas anmälda
-functions/api/signup.js   ← anmäl / avanmäl + ev. mejlutskick
-functions/_week.js        ← hjälpfunktion för veckonumret
+wrangler.jsonc     ← konfiguration: Worker-namn, statiska filer, KV-bindning
+src/index.js       ← all serverlogik (anmälan, lista, statiska filer)
+public/index.html  ← själva sidan (formulär + lista)
 ```
 
-## Steg 1 – Lägg koden på GitHub
-1. Skapa ett gratis GitHub-konto om du inte har ett.
-2. Skapa ett nytt repo, t.ex. `innebandy`, och lägg in dessa filer
-   (behåll mappstrukturen).
+## Byt ut era gamla filer
+1. I ert GitHub-repo: **ta bort** den gamla `functions/`-mappen helt.
+2. Lägg till/ersätt med `wrangler.jsonc` och `src/index.js` från den här mappen.
+3. `public/index.html` är oförändrad, den kan ligga kvar som den är.
+4. Committa och pusha till `main`.
 
-## Steg 2 – Cloudflare Pages
-1. Skapa ett gratis konto på https://dash.cloudflare.com
-2. Gå till **Workers & Pages → Create → Pages → Connect to Git**
-   och välj ditt repo.
-3. Build settings: lämna "Build command" tomt, **Build output
-   directory: `public`** (functions-mappen hittas automatiskt).
-4. Deploy. Ni får en gratis adress typ `innebandy.pages.dev`.
+`wrangler.jsonc` innehåller redan er KV-namespace-ID (`SIGNUPS`) som ni
+skapade tidigare, så bindningen sätts upp automatiskt av Cloudflare när
+den läser filen — ni behöver INTE lägga till den manuellt i
+dashboarden längre.
 
-## Steg 3 – Lagring (KV) för anmälningarna
-1. I Cloudflare-dashboarden: **Workers & Pages → KV → Create a
-   namespace**, kalla den t.ex. `SIGNUPS`.
-2. Gå till ert Pages-projekt → **Settings → Functions → KV
-   namespace bindings → Add binding**:
-   - Variable name: `SIGNUPS`
-   - KV namespace: den ni just skapade
-3. Deploya om (Retry deployment) så bindingen slår igenom.
+## Efter push
+1. Gå till ert projekt i Cloudflare → fliken **Deployments**
+2. En ny deploy bör starta automatiskt (annars: **Retry deployment**)
+3. Kontrollera i loggen att den hittar `wrangler.jsonc` och bygger utan fel
+4. Gå till **Settings → Bindings** och bekräfta att `SIGNUPS` (KV namespace)
+   nu visas där, under både Production och Previews — den kommer nu
+   från filen, inte från ett manuellt klick
 
-Nu funkar anmälan och listan – helt gratis, ingen reklam.
+## Om ni behöver ändra KV-namespacets ID
+Om `1c5440a89c9e487b8840fae5634d5f41` i `wrangler.jsonc` inte stämmer
+(t.ex. om ni skapat om namespacet): gå till **Storage & Databases → KV**,
+öppna namespacet `SIGNUPS`, kopiera dess ID, och klistra in det i
+`wrangler.jsonc` istället.
 
-## Steg 4 – Valfritt: mejl vid anmälan
-1. Skapa ett gratis konto på https://resend.com (100 mejl/dag gratis,
-   räcker med marginal för 8 personer).
-2. Skapa en API-nyckel.
-3. I Pages-projektet → **Settings → Environment variables**, lägg till:
-   - `RESEND_API_KEY` = er nyckel
-   - `NOTIFY_EMAILS` = t.ex. `anna@mail.se,bjorn@mail.se` (kommaseparerat)
-   - `FROM_EMAIL` = en avsändaradress (Resend ger er en gratis
-     `@resend.dev`-adress att testa med om ni inte har egen domän)
-   - `MIN_PLAYERS` = t.ex. `6` (hur många som behövs för att det blir av)
-4. Deploya om.
-
-Utan dessa variabler fungerar sidan precis lika bra – ni missar bara
-mejlutskicket och kollar listan i webbläsaren istället.
+## Valfritt: mejl vid anmälan
+Samma som tidigare — lägg till dessa som **Environment variables** under
+**Settings → Variables and Secrets**:
+- `RESEND_API_KEY` = er Resend-nyckel (gratis konto på resend.com)
+- `NOTIFY_EMAILS` = t.ex. `anna@mail.se,bjorn@mail.se`
+- `FROM_EMAIL` = avsändaradress
+- `MIN_PLAYERS` = t.ex. `6`
 
 ## Anpassa
-- Byt ut namnen i `KNOWN_PLAYERS`-listan i `index.html` mot era 8 namn
-  (eller lämna tom så skriver alla sitt namn själva varje gång).
+- Byt ut namnen i `KNOWN_PLAYERS`-listan i `public/index.html` mot era 8 namn.
 - Ändra `MIN_PLAYERS` i både `index.html` och miljövariabeln.
