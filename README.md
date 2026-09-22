@@ -1,51 +1,77 @@
 # Innebandy-anmälan – gratis, reklamfri, på Cloudflare Workers
 
-Uppdaterad version. Cloudflares nya enhetliga Workers-modell kräver att
-API-logiken ligger i en enda "Worker"-fil och att bindningar (som KV)
-deklareras i en `wrangler.jsonc`-fil i repot, istället för att bara
-klickas ihop i dashboarden. Annars ger Cloudflare felet
-"Bindings cannot be added to a Worker that only has static assets."
+En enkel, reklamfri variant av bokat.se. Varje spelare får en personlig länk
+och svarar **Ja / Kanske / Nej** på nästa pass. Allt körs gratis på
+Cloudflare Workers med en D1-databas.
 
 ## Filer
 ```
-wrangler.jsonc     ← konfiguration: Worker-namn, statiska filer, KV-bindning
-src/index.js       ← all serverlogik (anmälan, lista, statiska filer)
-public/index.html  ← själva sidan (formulär + lista)
+wrangler.jsonc          ← konfiguration: Worker, statiska filer, D1-databas
+src/index.js            ← all serverlogik (API för pass, svar och admin)
+migrations/             ← databasschema (körs med wrangler d1 migrations)
+public/index.html       ← sidan spelarna ser
+public/admin.html       ← adminsida (/admin): lägg till pass och spelare, kopiera länkar
 ```
 
-## Byt ut era gamla filer
-1. I ert GitHub-repo: **ta bort** den gamla `functions/`-mappen helt.
-2. Lägg till/ersätt med `wrangler.jsonc` och `src/index.js` från den här mappen.
-3. `public/index.html` är oförändrad, den kan ligga kvar som den är.
-4. Committa och pusha till `main`.
+## Så funkar det
+- **Admin** går till `/admin`, loggar in med `ADMIN_TOKEN`, lägger till
+  spelare och pass.
+- Varje spelare får en **personlig länk** (`/?p=…`) som admin kopierar och
+  skickar, t.ex. i gruppchatten privat. Länken sparas i webbläsaren, så
+  spelaren behöver bara öppna den en gång.
+- Startsidan visar alltid **nästa pass** (fram till 3 timmar efter start).
+  Alla kan se listan, men bara den som har en länk kan svara, och bara för sig
+  själv.
+- Om mejl är inställt skickas **ett** mejl när tillräckligt många har svarat
+  ja.
 
-`wrangler.jsonc` innehåller redan er KV-namespace-ID (`SIGNUPS`) som ni
-skapade tidigare, så bindningen sätts upp automatiskt av Cloudflare när
-den läser filen — ni behöver INTE lägga till den manuellt i
-dashboarden längre.
+## Första gången: skapa databasen
+Kräver Node.js (`brew install node`).
 
-## Efter push
-1. Gå till ert projekt i Cloudflare → fliken **Deployments**
-2. En ny deploy bör starta automatiskt (annars: **Retry deployment**)
-3. Kontrollera i loggen att den hittar `wrangler.jsonc` och bygger utan fel
-4. Gå till **Settings → Bindings** och bekräfta att `SIGNUPS` (KV namespace)
-   nu visas där, under både Production och Previews — den kommer nu
-   från filen, inte från ett manuellt klick
+```bash
+npm install
+npx wrangler login
+npx wrangler d1 create innebandy
+```
 
-## Om ni behöver ändra KV-namespacets ID
-Om `1c5440a89c9e487b8840fae5634d5f41` i `wrangler.jsonc` inte stämmer
-(t.ex. om ni skapat om namespacet): gå till **Storage & Databases → KV**,
-öppna namespacet `SIGNUPS`, kopiera dess ID, och klistra in det i
-`wrangler.jsonc` istället.
+Kopiera `database_id` som skrivs ut och klistra in det i `wrangler.jsonc`.
+Skapa sedan tabellerna i den riktiga databasen:
 
-## Valfritt: mejl vid anmälan
-Samma som tidigare — lägg till dessa som **Environment variables** under
-**Settings → Variables and Secrets**:
-- `RESEND_API_KEY` = er Resend-nyckel (gratis konto på resend.com)
+```bash
+npm run migrate
+```
+
+Sätt admin-lösenordet som en hemlighet (välj något långt och slumpmässigt):
+
+```bash
+npx wrangler secret put ADMIN_TOKEN
+```
+
+## Deploy
+**Med GitHub-kopplingen (Workers Builds):** pusha till `main` som vanligt.
+Sätt gärna *Deploy command* under **Settings → Build** till
+`npm run deploy`, så körs nya databasmigreringar automatiskt före varje deploy.
+
+**Manuellt:** `npm run deploy`
+
+## Lokal utveckling
+```bash
+cp .dev.vars.example .dev.vars   # sätt ett ADMIN_TOKEN för lokalt bruk
+npm run dev
+```
+Öppna http://localhost:8787/admin. Den lokala databasen ligger i
+`.wrangler/` och påverkar inte den riktiga.
+
+## Valfritt: mejl när passet blir av
+Lägg till under **Settings → Variables and Secrets** i Cloudflare:
+- `RESEND_API_KEY` = er Resend-nyckel (gratis konto på resend.com), som *secret*
 - `NOTIFY_EMAILS` = t.ex. `anna@mail.se,bjorn@mail.se`
 - `FROM_EMAIL` = avsändaradress
-- `MIN_PLAYERS` = t.ex. `6`
 
-## Anpassa
-- Byt ut namnen i `KNOWN_PLAYERS`-listan i `public/index.html` mot era 8 namn.
-- Ändra `MIN_PLAYERS` i både `index.html` och miljövariabeln.
+Minsta antal spelare sätts nu per pass på adminsidan, så `MIN_PLAYERS`
+behövs inte längre.
+
+## Från den gamla versionen
+Den gamla versionen sparade anmälningar i KV (`SIGNUPS`). De används inte
+längre och flyttas inte över. KV-namespacet kan tas bort i Cloudflare när
+den nya versionen fungerar.
