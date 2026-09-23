@@ -104,10 +104,10 @@
   .comments h2 { font-size: 1rem; margin: 0; }
   .comment-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 12px; }
   .comment-list .empty { color: var(--muted); font-size: 0.9rem; }
-  .comment-head { display: flex; align-items: baseline; gap: 8px; }
-  .comment-head strong { font-size: 0.95rem; }
-  .comment-head time { font-size: 0.8rem; color: var(--muted); flex: 1; }
-  .comment-body { margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .comment-list li { overflow-wrap: anywhere; }
+  .comment-list strong { font-size: 0.95rem; }
+  .comment-body { white-space: pre-wrap; }
+  .comment-list time { font-size: 0.8rem; color: var(--muted); margin-left: 4px; white-space: nowrap; }
   .comment-delete {
     border: none;
     background: none;
@@ -273,18 +273,19 @@
     }
     for (const c of list) {
       const li = document.createElement("li");
-      const head = document.createElement("div");
-      head.className = "comment-head";
       const time = document.createElement("time");
       time.dateTime = c.created_at;
       time.textContent = timeAgo(c.created_at);
-      head.append(Object.assign(document.createElement("strong"), { textContent: c.name }), time);
+      li.append(
+        Object.assign(document.createElement("strong"), { textContent: c.name }), " ",
+        Object.assign(document.createElement("span"), { className: "comment-body", textContent: c.body }), " ",
+        time,
+      );
       if (c.can_delete) {
         const del = Object.assign(document.createElement("button"), { className: "comment-delete", textContent: "Ta bort" });
         del.addEventListener("click", () => deleteComment(c.id));
-        head.append(del);
+        li.append(" ", del);
       }
-      li.append(head, Object.assign(document.createElement("div"), { className: "comment-body", textContent: c.body }));
       ul.append(li);
     }
   }
