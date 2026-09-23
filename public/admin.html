@@ -86,7 +86,7 @@
   }
   input:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
   /* iOS Safari ger datumfält en egen minsta bredd och höjd; tvinga dem att följa layouten. */
-  input[type="datetime-local"], input[type="time"] {
+  input[type="date"], input[type="time"] {
     -webkit-appearance: none;
     appearance: none;
     min-height: 44px;
@@ -147,7 +147,7 @@
       <button class="secondary" id="logoutBtn" hidden>Logga ut</button>
     </div>
   </header>
-  <p class="lead">Admin – lägg in pass och spelare och skicka ut personliga länkar.</p>
+  <p class="lead">Admin – lägg in återkommande pass och spelare och skicka ut personliga länkar.</p>
 
   <div class="card" id="loginCard">
     <h2>Logga in</h2>
@@ -161,30 +161,9 @@
     </form>
   </div>
 
-  <div class="card" id="eventsCard" hidden>
-    <h2>Pass</h2>
-    <div class="grid2">
-      <div>
-        <label for="startsAt">Datum och tid</label>
-        <input id="startsAt" type="datetime-local">
-      </div>
-      <div>
-        <label for="minPlayers">Minst antal spelare</label>
-        <input id="minPlayers" type="number" min="1" max="100" value="6">
-      </div>
-    </div>
-    <label for="location">Plats</label>
-    <input id="location" type="text" maxlength="80" placeholder="t.ex. Västerhallen">
-    <label for="note">Info (valfritt)</label>
-    <textarea id="note" rows="2" maxlength="300" placeholder="t.ex. Ta med både mörk och ljus tröja"></textarea>
-    <div class="actions"><button id="addEventBtn">Lägg till pass</button></div>
-    <div class="msg" id="eventMsg"></div>
-    <ul id="events"></ul>
-  </div>
-
   <div class="card" id="seriesCard" hidden>
-    <h2>Återkommande pass</h2>
-    <p class="help">Pass skapas automatiskt två veckor framåt. Enskilda tillfällen kan ställas in under Pass.</p>
+    <h2 id="seriesTitle">Återkommande pass</h2>
+    <p class="help">Alla pass mellan start- och slutdatum skapas direkt. Enskilda tillfällen kan ställas in under Kommande pass.</p>
     <div class="grid2 even">
       <div>
         <label for="seriesWeekday">Veckodag</label>
@@ -203,6 +182,16 @@
         <input id="seriesTime" type="time" value="19:30">
       </div>
     </div>
+    <div class="grid2 even">
+      <div>
+        <label for="seriesStart">Startdatum</label>
+        <input id="seriesStart" type="date">
+      </div>
+      <div>
+        <label for="seriesEnd">Slutdatum</label>
+        <input id="seriesEnd" type="date">
+      </div>
+    </div>
     <div class="grid2">
       <div>
         <label for="seriesLocation">Plats</label>
@@ -214,10 +203,20 @@
       </div>
     </div>
     <label for="seriesNote">Info (valfritt)</label>
-    <textarea id="seriesNote" rows="2" maxlength="300"></textarea>
-    <div class="actions"><button id="addSeriesBtn">Lägg till återkommande pass</button></div>
+    <textarea id="seriesNote" rows="2" maxlength="300" placeholder="t.ex. Ta med både mörk och ljus tröja"></textarea>
+    <div class="actions row">
+      <button id="saveSeriesBtn">Lägg till återkommande pass</button>
+      <button class="secondary" id="cancelEditBtn" hidden>Avbryt</button>
+    </div>
     <div class="msg" id="seriesMsg"></div>
     <ul id="series"></ul>
+  </div>
+
+  <div class="card" id="eventsCard" hidden>
+    <h2>Kommande pass</h2>
+    <p class="help">Ställ in ett tillfälle så försvinner det från anmälningssidan. Det går att återställa.</p>
+    <div class="msg" id="eventMsg"></div>
+    <ul id="events"></ul>
   </div>
 
   <div class="card" id="playersCard" hidden>
@@ -273,6 +272,16 @@
       weekday: "short", day: "numeric", month: "short",
       hour: "2-digit", minute: "2-digit"
     }).format(new Date(iso));
+  }
+
+  function formatDate(ymd) {
+    return new Intl.DateTimeFormat("sv-SE", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" })
+      .format(new Date(ymd + "T00:00:00Z"));
+  }
+
+  // Dagens datum i Stockholm som "YYYY-MM-DD".
+  function todayYmd() {
+    return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm" }).format(new Date());
   }
 
   function button(text, cls, onClick) {
@@ -353,7 +362,7 @@
     for (const e of events) {
       const li = document.createElement("li");
       if (e.cancelled) li.className = "cancelled";
-      const meta = [e.cancelled ? "Inställt" : "", e.location, `${e.yes}/${e.min_players} ja`, e.series_id ? "återkommande" : ""]
+      const meta = [e.cancelled ? "Inställt" : "", e.location, `${e.yes}/${e.min_players} ja`]
         .filter(Boolean).join(" · ");
       li.append(textBlock(formatStart(e.starts_at), meta));
       if (e.series_id) {
@@ -379,6 +388,13 @@
     }
   }
 
+  let editing = null; // serien som ändras, annars null
+
+  function weekdayTitle(s) {
+    const w = WEEKDAYS[s.weekday - 1];
+    return `${w[0].toUpperCase()}${w.slice(1)} ${s.time}`;
+  }
+
   async function loadSeries() {
     const { series } = await api("/api/admin/series");
     const ul = $("series");
@@ -387,21 +403,58 @@
       ul.innerHTML = '<li class="empty">Inga återkommande pass.</li>';
       return;
     }
+    const today = todayYmd();
     for (const s of series) {
       const li = document.createElement("li");
-      const title = `${WEEKDAYS[s.weekday - 1][0].toUpperCase()}${WEEKDAYS[s.weekday - 1].slice(1)} ${s.time}`;
-      const meta = [s.location, `minst ${s.min_players}`].filter(Boolean).join(" · ");
+      const range = s.start_date || s.end_date
+        ? `${s.start_date ? formatDate(s.start_date) : "nu"} – ${s.end_date ? formatDate(s.end_date) : "tills vidare"}`
+        : "tills vidare";
+      const ended = s.end_date && s.end_date < today;
+      const meta = [ended ? "Avslutad" : "", range, s.location, `minst ${s.min_players}`].filter(Boolean).join(" · ");
       li.append(
-        textBlock(title, meta),
+        textBlock(weekdayTitle(s), meta),
+        button("Ändra", "secondary", () => startEdit(s)),
         button("✕", "danger", async () => {
           if (!confirm(`Ta bort ${WEEKDAYS[s.weekday - 1]} ${s.time}? Kommande pass i serien tas också bort.`)) return;
           await api(`/api/admin/series/${s.id}`, "DELETE");
+          if (editing && editing.id === s.id) stopEdit();
           loadSeries();
           loadEvents();
         })
       );
       ul.appendChild(li);
     }
+  }
+
+  function startEdit(s) {
+    editing = s;
+    $("seriesWeekday").value = String(s.weekday);
+    $("seriesTime").value = s.time;
+    $("seriesStart").value = s.start_date;
+    $("seriesEnd").value = s.end_date;
+    $("seriesLocation").value = s.location;
+    $("seriesMin").value = s.min_players;
+    $("seriesNote").value = s.note;
+    // Veckodag och tid går inte att ändra; ta bort serien och lägg in en ny i stället.
+    $("seriesWeekday").disabled = true;
+    $("seriesTime").disabled = true;
+    $("seriesTitle").textContent = `Ändra ${WEEKDAYS[s.weekday - 1]} ${s.time}`;
+    $("saveSeriesBtn").textContent = "Spara ändringar";
+    $("cancelEditBtn").hidden = false;
+    show($("seriesMsg"), "");
+    $("seriesCard").scrollIntoView({ behavior: "smooth" });
+  }
+
+  function stopEdit() {
+    editing = null;
+    $("seriesWeekday").disabled = false;
+    $("seriesTime").disabled = false;
+    $("seriesStart").value = todayYmd();
+    $("seriesEnd").value = "";
+    $("seriesNote").value = "";
+    $("seriesTitle").textContent = "Återkommande pass";
+    $("saveSeriesBtn").textContent = "Lägg till återkommande pass";
+    $("cancelEditBtn").hidden = true;
   }
 
   async function login() {
@@ -458,40 +511,39 @@
     $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") $("addPlayerBtn").click(); });
   }
 
-  $("addSeriesBtn").addEventListener("click", async () => {
+  $("seriesStart").value = todayYmd();
+  $("cancelEditBtn").addEventListener("click", () => { stopEdit(); show($("seriesMsg"), ""); });
+
+  $("saveSeriesBtn").addEventListener("click", async () => {
+    const start_date = $("seriesStart").value;
+    const end_date = $("seriesEnd").value;
+    if (!end_date) return show($("seriesMsg"), "Välj slutdatum.");
+    if (start_date && end_date < start_date) return show($("seriesMsg"), "Slutdatum måste vara efter startdatum.");
+    const body = {
+      start_date,
+      end_date,
+      location: $("seriesLocation").value,
+      note: $("seriesNote").value,
+      min_players: Number($("seriesMin").value)
+    };
     try {
-      await api("/api/admin/series", "POST", {
-        weekday: Number($("seriesWeekday").value),
-        time: $("seriesTime").value,
-        location: $("seriesLocation").value,
-        note: $("seriesNote").value,
-        min_players: Number($("seriesMin").value)
-      });
-      show($("seriesMsg"), "Återkommande pass tillagt. De närmaste passen syns under Pass.", true);
-      $("seriesNote").value = "";
+      if (editing) {
+        await api(`/api/admin/series/${editing.id}`, "PATCH", body);
+        stopEdit();
+        show($("seriesMsg"), "Ändringarna är sparade.", true);
+      } else {
+        await api("/api/admin/series", "POST", {
+          ...body,
+          weekday: Number($("seriesWeekday").value),
+          time: $("seriesTime").value
+        });
+        stopEdit();
+        show($("seriesMsg"), "Återkommande pass tillagt. Passen syns under Kommande pass.", true);
+      }
       loadSeries();
       loadEvents();
     } catch (e) {
       show($("seriesMsg"), e.message);
-    }
-  });
-
-  $("addEventBtn").addEventListener("click", async () => {
-    const value = $("startsAt").value;
-    if (!value) return show($("eventMsg"), "Välj datum och tid.");
-    try {
-      await api("/api/admin/events", "POST", {
-        // datetime-local tolkas i webbläsarens tidszon och skickas som UTC.
-        starts_at: new Date(value).toISOString(),
-        location: $("location").value,
-        note: $("note").value,
-        min_players: Number($("minPlayers").value)
-      });
-      show($("eventMsg"), "Passet är tillagt.", true);
-      $("note").value = "";
-      loadEvents();
-    } catch (e) {
-      show($("eventMsg"), e.message);
     }
   });
 
