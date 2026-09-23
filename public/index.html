@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 48 48%27%3E%3Cpath d=%27M40 4 17 32q-3 5-9 5H5%27 fill=%27none%27 stroke=%27%231b1f24%27 stroke-width=%274.5%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3Ccircle cx=%2733%27 cy=%2736%27 r=%2710.5%27 fill=%27%234a9d5f%27/%3E%3C/svg%3E">
 <title>Innebandy – Anmälan</title>
 <style>
   :root {
@@ -53,7 +54,8 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
   }
-  .brand { font-size: 1.25rem; font-weight: 800; }
+  .logo { width: 1.4em; height: 1.4em; flex: none; --hole: var(--surface); }
+  .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 1.25rem; font-weight: 800; }
   .admin-link {
     padding: 8px 14px;
     border-radius: 10px;
@@ -65,7 +67,8 @@
   }
   .admin-link:hover { background: var(--border); }
   main { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 8px; }
+  h1 { display: flex; align-items: center; gap: 10px; font-size: 1.9rem; line-height: 1.2; margin: 0 0 8px; }
+  h1 .logo { width: 1.5em; height: 1.5em; --hole: var(--bg); }
   .lead { color: var(--muted); margin: 0 0 20px; }
   .card {
     background: var(--surface);
@@ -173,13 +176,13 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">🏒 Innebandy</div>
+    <div class="brand" aria-label="Innebandy"><svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><path d="M40 4 17 32q-3 5-9 5H5" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="33" cy="36" r="10.5" fill="var(--yes)"/><g fill="var(--hole)"><circle cx="33" cy="36" r="1.9"/><circle cx="37.8" cy="36" r="1.9"/><circle cx="35.4" cy="40.2" r="1.9"/><circle cx="30.6" cy="40.2" r="1.9"/><circle cx="28.2" cy="36" r="1.9"/><circle cx="30.6" cy="31.8" r="1.9"/><circle cx="35.4" cy="31.8" r="1.9"/></g></svg></div>
     <a class="admin-link" href="/admin">Admin</a>
   </header>
 
   <main>
-    <h1>Kommande innebandy</h1>
-    <p class="lead">Anmäl dig enkelt – ingen app behövs.</p>
+    <h1><svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><path d="M40 4 17 32q-3 5-9 5H5" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="33" cy="36" r="10.5" fill="var(--yes)"/><g fill="var(--hole)"><circle cx="33" cy="36" r="1.9"/><circle cx="37.8" cy="36" r="1.9"/><circle cx="35.4" cy="40.2" r="1.9"/><circle cx="30.6" cy="40.2" r="1.9"/><circle cx="28.2" cy="36" r="1.9"/><circle cx="30.6" cy="31.8" r="1.9"/><circle cx="35.4" cy="31.8" r="1.9"/></g></svg>Innebandy</h1>
+    <p class="lead">Se vem som kommer och svara på nästa pass.</p>
 
     <section class="card">
       <div class="meta" id="loading">Laddar…</div>
