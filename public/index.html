@@ -97,17 +97,12 @@
   .roster li.maybe { border-left-color: var(--maybe); }
   .roster li.no { border-left-color: var(--no); }
   .roster li.none { color: var(--muted); }
-  .roster .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .roster .who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .roster .note { color: var(--muted); font-size: 0.9rem; white-space: pre-wrap; }
   .roster .tag { font-size: 0.8rem; color: var(--muted); }
   .roster li.me .name { font-weight: 700; }
   .comments { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--border); }
   .comments h2 { font-size: 1rem; margin: 0; }
-  .comment-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 12px; }
-  .comment-list .empty { color: var(--muted); font-size: 0.9rem; }
-  .comment-list li { overflow-wrap: anywhere; }
-  .comment-list strong { font-size: 0.95rem; }
-  .comment-body { white-space: pre-wrap; }
-  .comment-list time { font-size: 0.8rem; color: var(--muted); margin-left: 4px; white-space: nowrap; }
   .comment-delete {
     border: none;
     background: none;
@@ -208,8 +203,7 @@
         </div>
 
         <div class="comments">
-          <h2>Kommentarer</h2>
-          <ul class="comment-list" id="comments"></ul>
+          <h2>Kommentar</h2>
           <form class="comment-form" id="commentForm" hidden>
             <textarea id="commentText" rows="2" maxlength="500" placeholder="Skriv en kommentar, t.ex. &quot;Jag tar med bollar&quot;"></textarea>
             <button type="submit">Skicka</button>
@@ -254,40 +248,6 @@
     if (token) h["X-Player-Token"] = token;
     if (adminToken) h["Authorization"] = "Bearer " + adminToken;
     return h;
-  }
-
-  function timeAgo(iso) {
-    const minutes = Math.round((Date.now() - new Date(iso)) / 60000);
-    if (minutes < 1) return "nyss";
-    if (minutes < 60) return `${minutes} min sedan`;
-    const hours = Math.round(minutes / 60);
-    if (hours < 24) return `${hours} tim sedan`;
-    return stockholm(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  }
-
-  function renderComments(list) {
-    const ul = $("comments");
-    ul.innerHTML = "";
-    if (!list.length) {
-      ul.append(Object.assign(document.createElement("li"), { className: "empty", textContent: "Inga kommentarer än." }));
-    }
-    for (const c of list) {
-      const li = document.createElement("li");
-      const time = document.createElement("time");
-      time.dateTime = c.created_at;
-      time.textContent = timeAgo(c.created_at);
-      li.append(
-        Object.assign(document.createElement("strong"), { textContent: c.name }), " ",
-        Object.assign(document.createElement("span"), { className: "comment-body", textContent: c.body }), " ",
-        time,
-      );
-      if (c.can_delete) {
-        const del = Object.assign(document.createElement("button"), { className: "comment-delete", textContent: "Ta bort" });
-        del.addEventListener("click", () => deleteComment(c.id));
-        li.append(" ", del);
-      }
-      ul.append(li);
-    }
   }
 
   function stockholm(iso, options) {
@@ -336,10 +296,18 @@
       li.className = status;
       const icon = document.createElement("span");
       icon.textContent = ICON[status];
-      const name = document.createElement("span");
-      name.className = "name";
-      name.textContent = p.name;
-      li.append(icon, name);
+      const who = document.createElement("span");
+      who.className = "who";
+      who.append(Object.assign(document.createElement("span"), { className: "name", textContent: p.name }));
+      for (const c of (data.comments || []).filter((c) => c.name === p.name)) {
+        who.append(" ", Object.assign(document.createElement("span"), { className: "note", textContent: c.body }));
+        if (c.can_delete) {
+          const del = Object.assign(document.createElement("button"), { className: "comment-delete", textContent: "×", title: "Ta bort kommentaren" });
+          del.addEventListener("click", () => deleteComment(c.id));
+          who.append(del);
+        }
+      }
+      li.append(icon, who);
       if (status === "none") {
         li.append(Object.assign(document.createElement("span"), { className: "tag", textContent: "inte svarat" }));
       }
@@ -350,7 +318,6 @@
       roster.appendChild(li);
     }
 
-    renderComments(data.comments || []);
     $("commentForm").hidden = !data.me;
 
     $("answerBox").hidden = !data.me;
