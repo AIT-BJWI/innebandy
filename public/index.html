@@ -46,29 +46,21 @@
     color: var(--text);
     min-height: 100vh;
   }
-  .topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-  }
-  .logo { width: 1.4em; height: 1.4em; flex: none; --hole: var(--surface); }
-  .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 1.25rem; font-weight: 800; }
+  .logo { width: 1.5em; height: 1.5em; flex: none; --hole: var(--bg); }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
   .admin-link {
     padding: 8px 14px;
     border-radius: 10px;
-    background: var(--row);
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: var(--text);
     font-size: 0.9rem;
     font-weight: 600;
     text-decoration: none;
   }
-  .admin-link:hover { background: var(--border); }
+  .admin-link:hover { background: var(--row); }
   main { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { display: flex; align-items: center; gap: 10px; font-size: 1.9rem; line-height: 1.2; margin: 0 0 8px; }
-  h1 .logo { width: 1.5em; height: 1.5em; --hole: var(--bg); }
+  h1 { display: flex; align-items: center; gap: 10px; font-size: 1.9rem; line-height: 1.2; margin: 0; }
   .lead { color: var(--muted); margin: 0 0 20px; }
   .card {
     background: var(--surface);
@@ -175,14 +167,12 @@
 </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand" aria-label="Innebandy"><svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><path d="M40 4 17 32q-3 5-9 5H5" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="33" cy="36" r="10.5" fill="var(--yes)"/><g fill="var(--hole)"><circle cx="33" cy="36" r="1.9"/><circle cx="37.8" cy="36" r="1.9"/><circle cx="35.4" cy="40.2" r="1.9"/><circle cx="30.6" cy="40.2" r="1.9"/><circle cx="28.2" cy="36" r="1.9"/><circle cx="30.6" cy="31.8" r="1.9"/><circle cx="35.4" cy="31.8" r="1.9"/></g></svg></div>
-    <a class="admin-link" href="/admin">Admin</a>
-  </header>
-
   <main>
-    <h1><svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><path d="M40 4 17 32q-3 5-9 5H5" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="33" cy="36" r="10.5" fill="var(--yes)"/><g fill="var(--hole)"><circle cx="33" cy="36" r="1.9"/><circle cx="37.8" cy="36" r="1.9"/><circle cx="35.4" cy="40.2" r="1.9"/><circle cx="30.6" cy="40.2" r="1.9"/><circle cx="28.2" cy="36" r="1.9"/><circle cx="30.6" cy="31.8" r="1.9"/><circle cx="35.4" cy="31.8" r="1.9"/></g></svg>Innebandy</h1>
-    <p class="lead">Se vem som kommer och svara på nästa pass.</p>
+    <header class="head">
+      <h1><svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><path d="M40 4 17 32q-3 5-9 5H5" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="33" cy="36" r="10.5" fill="var(--yes)"/><g fill="var(--hole)"><circle cx="33" cy="36" r="1.9"/><circle cx="37.8" cy="36" r="1.9"/><circle cx="35.4" cy="40.2" r="1.9"/><circle cx="30.6" cy="40.2" r="1.9"/><circle cx="28.2" cy="36" r="1.9"/><circle cx="30.6" cy="31.8" r="1.9"/><circle cx="35.4" cy="31.8" r="1.9"/></g></svg>Innebandy</h1>
+      <a class="admin-link" href="/admin">Admin</a>
+    </header>
+    <p class="lead">Anmäl dig enkelt.</p>
 
     <section class="card">
       <div class="meta" id="loading">Laddar…</div>
