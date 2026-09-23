@@ -2,8 +2,10 @@ const STATUSES = ["yes", "maybe", "no"];
 const TIME_ZONE = "Europe/Stockholm";
 // Ett pass räknas som "aktuellt" fram till 3 timmar efter start.
 const EVENT_GRACE_MS = 3 * 60 * 60 * 1000;
-// Så långt fram skapas pass från återkommande serier.
+// Så långt fram skapas pass från återkommande serier som saknar slutdatum …
 const SERIES_HORIZON_DAYS = 14;
+// … och högst så långt fram även om slutdatumet ligger längre bort.
+const SERIES_MAX_DAYS = 400;
 // Påminnelse skickas när det är mindre än så här lång tid kvar till passet …
 const REMIND_BEFORE_MS = 24 * 60 * 60 * 1000;
 // … men inte om passet börjar om mindre än så här.
@@ -159,37 +161,57 @@ async function yesCount(env, eventId) {
   return row.n;
 }
 
-// Skapar pass för alla serier inom SERIES_HORIZON_DAYS. Befintliga (även inställda)
-// pass lämnas orörda tack vare det unika indexet på (series_id, starts_at).
+// Skapar pass för alla serier fram till seriens slutdatum (utan slutdatum:
+// SERIES_HORIZON_DAYS framåt). Befintliga (även inställda) pass lämnas orörda.
 async function fillSeries(env) {
   const { results: series } = await env.DB.prepare("SELECT * FROM series").all();
   if (!series.length) return;
   const today = stockholmToday();
   const now = Date.now();
-  const inserts = [];
-  for (let i = 0; i <= SERIES_HORIZON_DAYS; i++) {
-    const day = today + i * DAY_MS;
-    const weekday = ((new Date(day).getUTCDay() + 6) % 7) + 1;
-    for (const s of series) {
-      if (s.weekday !== weekday) continue;
+
+  // Pass som redan finns framåt, för att bara skriva det som saknas.
+  const { results: existing } = await env.DB.prepare(
+    "SELECT id, starts_at, series_id FROM events WHERE starts_at > ?"
+  )
+    .bind(new Date(now).toISOString())
+    .all();
+  const taken = new Set(existing.filter((e) => e.series_id).map((e) => `${e.series_id}|${e.starts_at}`));
+  const manual = new Map(existing.filter((e) => !e.series_id).map((e) => [e.starts_at, e.id]));
+
+  const stmts = [];
+  const rows = [];
+  for (const s of series) {
+    const last = s.end_date
+      ? Math.min(Date.parse(s.end_date + "T00:00:00Z"), today + SERIES_MAX_DAYS * DAY_MS)
+      : today + SERIES_HORIZON_DAYS * DAY_MS;
+    const first = s.start_date ? Math.max(Date.parse(s.start_date + "T00:00:00Z"), today) : today;
+    // Första dagen med rätt veckodag, sedan en vecka i taget.
+    const firstWeekday = ((new Date(first).getUTCDay() + 6) % 7) + 1;
+    for (let day = first + ((s.weekday - firstWeekday + 7) % 7) * DAY_MS; day <= last; day += 7 * DAY_MS) {
       const start = stockholmToUtc(day, s.time);
       if (start <= now) continue;
       const startsAt = new Date(start).toISOString();
-      inserts.push(
+      if (taken.has(`${s.id}|${startsAt}`)) continue;
+      if (manual.has(startsAt)) {
         // Ett manuellt pass på samma tid tas över av serien (med sina svar) i stället för att dubbleras.
-        env.DB.prepare(
-          `UPDATE events SET series_id = ?
-            WHERE id = (SELECT id FROM events WHERE starts_at = ? AND series_id IS NULL ORDER BY id LIMIT 1)
-              AND NOT EXISTS (SELECT 1 FROM events WHERE series_id = ? AND starts_at = ?)`
-        ).bind(s.id, startsAt, s.id, startsAt),
-        env.DB.prepare(
-          `INSERT OR IGNORE INTO events (starts_at, location, note, min_players, series_id)
-           VALUES (?, ?, ?, ?, ?)`
-        ).bind(startsAt, s.location, s.note, s.min_players, s.id)
-      );
+        stmts.push(env.DB.prepare("UPDATE events SET series_id = ? WHERE id = ?").bind(s.id, manual.get(startsAt)));
+        manual.delete(startsAt);
+        continue;
+      }
+      rows.push([startsAt, s.location, s.note, s.min_players, s.id]);
     }
   }
-  if (inserts.length) await env.DB.batch(inserts);
+  // D1 tillåter högst 100 parametrar per fråga: 20 pass à 5 värden.
+  for (let i = 0; i < rows.length; i += 20) {
+    const chunk = rows.slice(i, i + 20);
+    stmts.push(
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO events (starts_at, location, note, min_players, series_id)
+         VALUES ${chunk.map(() => "(?, ?, ?, ?, ?)").join(", ")}`
+      ).bind(...chunk.flat())
+    );
+  }
+  if (stmts.length) await env.DB.batch(stmts);
 }
 
 // ---------- Mejl ----------
@@ -390,6 +412,34 @@ async function deleteComment(request, env, id) {
 
 // ---------- Admin-API:er ----------
 
+// "YYYY-MM-DD" eller tom sträng. Returnerar null om datumet är ogiltigt.
+function cleanDate(value) {
+  if (value === undefined || value === null || value === "") return "";
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const d = new Date(value + "T00:00:00Z");
+  return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(value) ? value : null;
+}
+
+// Gemensam kontroll av seriens fält vid skapande och ändring.
+function seriesFields(body) {
+  const min = Number.isInteger(Number(body.min_players)) ? Number(body.min_players) : 6;
+  if (min < 1 || min > 100) return { err: "Minsta antal måste vara 1–100." };
+  const start = cleanDate(body.start_date);
+  const end = cleanDate(body.end_date);
+  if (start === null) return { err: "Ogiltigt startdatum." };
+  if (end === null) return { err: "Ogiltigt slutdatum." };
+  if (start && end && end < start) return { err: "Slutdatum måste vara efter startdatum." };
+  return {
+    location: cleanText(body.location, 80),
+    note: cleanText(body.note, 300),
+    min_players: min,
+    start_date: start,
+    end_date: end
+  };
+}
+
+const SERIES_COLUMNS = "id, weekday, time, location, note, min_players, start_date, end_date";
+
 async function adminPlayers(request, env, id) {
   if (request.method === "GET" && id === null) {
     const { results } = await env.DB.prepare(
@@ -501,7 +551,7 @@ async function adminEvents(request, env, id) {
 async function adminSeries(request, env, id) {
   if (request.method === "GET" && id === null) {
     const { results } = await env.DB.prepare(
-      "SELECT id, weekday, time, location, note, min_players FROM series ORDER BY weekday, time"
+      `SELECT ${SERIES_COLUMNS} FROM series ORDER BY weekday, time`
     ).all();
     return json({ series: results });
   }
@@ -512,16 +562,59 @@ async function adminSeries(request, env, id) {
     if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) return error("Välj veckodag.");
     const time = typeof body.time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(body.time) ? body.time : null;
     if (!time) return error("Ogiltig tid.");
-    const min = Number.isInteger(Number(body.min_players)) ? Number(body.min_players) : 6;
-    if (min < 1 || min > 100) return error("Minsta antal måste vara 1–100.");
+    const f = seriesFields(body);
+    if (f.err) return error(f.err);
     const series = await env.DB.prepare(
-      `INSERT INTO series (weekday, time, location, note, min_players) VALUES (?, ?, ?, ?, ?)
-       RETURNING id, weekday, time, location, note, min_players`
+      `INSERT INTO series (weekday, time, location, note, min_players, start_date, end_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING ${SERIES_COLUMNS}`
     )
-      .bind(weekday, time, cleanText(body.location, 80), cleanText(body.note, 300), min)
+      .bind(weekday, time, f.location, f.note, f.min_players, f.start_date, f.end_date)
       .first();
     await fillSeries(env);
     return json({ ok: true, series }, 201);
+  }
+
+  // Ändrar plats, info, minsta antal och datum. Kommande pass uppdateras, och pass
+  // som hamnar utanför det nya datumintervallet tas bort. Veckodag och tid ändras inte.
+  if (request.method === "PATCH" && id !== null) {
+    const f = seriesFields(await readJson(request));
+    if (f.err) return error(f.err);
+    const series = await env.DB.prepare(
+      `UPDATE series SET location = ?, note = ?, min_players = ?, start_date = ?, end_date = ?
+        WHERE id = ? RETURNING ${SERIES_COLUMNS}`
+    )
+      .bind(f.location, f.note, f.min_players, f.start_date, f.end_date, id)
+      .first();
+    if (!series) return error("Serien finns inte.", 404);
+
+    const now = new Date().toISOString();
+    // Kommande pass i serien vars datum (i svensk tid) ligger utanför intervallet.
+    const { results } = await env.DB.prepare(
+      "SELECT id, starts_at FROM events WHERE series_id = ? AND starts_at > ?"
+    )
+      .bind(id, now)
+      .all();
+    const outside = results
+      .filter((e) => {
+        const date = new Date(stockholmWallClock(Date.parse(e.starts_at))).toISOString().slice(0, 10);
+        return (f.start_date && date < f.start_date) || (f.end_date && date > f.end_date);
+      })
+      .map((e) => e.id);
+    const stmts = [
+      env.DB.prepare(
+        "UPDATE events SET location = ?, note = ?, min_players = ? WHERE series_id = ? AND starts_at > ?"
+      ).bind(f.location, f.note, f.min_players, id, now)
+    ];
+    for (const eventId of outside) {
+      stmts.push(
+        env.DB.prepare("DELETE FROM comments WHERE event_id = ?").bind(eventId),
+        env.DB.prepare("DELETE FROM responses WHERE event_id = ?").bind(eventId),
+        env.DB.prepare("DELETE FROM events WHERE id = ?").bind(eventId)
+      );
+    }
+    await env.DB.batch(stmts);
+    await fillSeries(env);
+    return json({ ok: true, series });
   }
 
   // Tar bort serien och dess kommande pass. Passerade pass ligger kvar.

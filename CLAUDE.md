@@ -65,12 +65,17 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
 - `players` (name UNIQUE NOCASE, token, email)
 - `events` (starts_at i UTC-ISO, min_players, series_id, cancelled, notified_at, reminded_at)
 - `responses` (PK event_id + player_id; upsert, så samtidiga svar krockar inte)
-- `series` (weekday 1 = måndag, time "HH:MM" i Stockholmstid)
+- `series` (weekday 1 = måndag, time "HH:MM" i Stockholmstid, start_date, end_date)
 - `comments`
 
 **Återkommande pass**
-- `fillSeries()` skapar pass `SERIES_HORIZON_DAYS` (14) dagar framåt. Den körs
-  av cron varje timme, när en serie skapas och vid `GET /api/admin/events`.
+- En serie har `start_date`/`end_date` ("YYYY-MM-DD", tom = ingen gräns).
+  `fillSeries()` skapar alla pass fram till slutdatumet (högst `SERIES_MAX_DAYS`),
+  utan slutdatum `SERIES_HORIZON_DAYS` (14) dagar framåt. Den körs av cron varje
+  timme, när en serie skapas eller ändras och vid `GET /api/admin/events`.
+- `PATCH /api/admin/series/:id` ändrar plats, info, minsta antal och datum (inte
+  veckodag/tid). Kommande pass uppdateras och pass utanför intervallet tas bort.
+- Adminsidan lägger bara in återkommande pass. `POST /api/admin/events` finns kvar i API:t.
 - Det unika indexet `(series_id, starts_at)` gör att `INSERT OR IGNORE` aldrig
   dubblerar pass.
 - Seriepass **ställs in** (`cancelled = 1`) i stället för att tas bort, annars
