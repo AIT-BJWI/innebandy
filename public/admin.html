@@ -43,32 +43,26 @@
     color: var(--text);
     min-height: 100vh;
   }
-  .topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-  }
-  .logo { width: 1.4em; height: 1.4em; flex: none; }
-  .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 1.25rem; font-weight: 800; color: var(--text); text-decoration: none; }
-  .topbar-actions { display: flex; gap: 8px; }
+  .logo { width: 2em; height: 2em; flex: none; }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+  .head h1 a { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
+  .head-actions { display: flex; gap: 8px; margin-left: auto; white-space: nowrap; }
+  @media (max-width: 420px) { h1 { font-size: 1.6rem; } }
   .nav-link {
     padding: 8px 14px;
     border-radius: 10px;
-    background: var(--row);
+    background: var(--surface);
     color: var(--text);
     font-size: 0.9rem;
     font-weight: 600;
     line-height: 1.2;
-    border: 1px solid var(--row);
+    border: 1px solid var(--border);
     text-decoration: none;
   }
-  .topbar button { padding: 8px 14px; font-size: 0.9rem; line-height: 1.2; }
+  .head button.secondary { padding: 8px 14px; font-size: 0.9rem; line-height: 1.2; background: var(--surface); border-color: var(--border); }
+  .nav-link:hover, .head button.secondary:hover { background: var(--row); }
   main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 16px; }
-  h1 { font-size: 1.75rem; line-height: 1.2; margin: 0; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0; }
   .lead { color: var(--muted); margin: -8px 0 4px; }
   .card {
     background: var(--surface);
@@ -145,17 +139,15 @@
 </style>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/"><img class="logo" src="/logo.webp" alt="">Innebandy</a>
-    <div class="topbar-actions">
+  <main>
+  <header class="head">
+    <h1><a href="/"><img class="logo" src="/logo.webp" alt="">Innebandy</a></h1>
+    <div class="head-actions">
       <a class="nav-link" href="/">Anmälan</a>
       <button class="secondary" id="logoutBtn" hidden>Logga ut</button>
     </div>
   </header>
-
-  <main>
-  <h1>Admin</h1>
-  <p class="lead">Lägg in pass och spelare och skicka ut personliga länkar.</p>
+  <p class="lead">Admin – lägg in pass och spelare och skicka ut personliga länkar.</p>
 
   <div class="card" id="loginCard">
     <h2>Logga in</h2>
