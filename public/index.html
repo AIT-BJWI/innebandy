@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>Innebandy – Anmälan</title>
 <style>
   :root {
@@ -45,27 +47,21 @@
     color: var(--text);
     min-height: 100vh;
   }
-  .topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-  }
-  .brand { font-size: 1.25rem; font-weight: 800; }
+  .logo { width: 2em; height: 2em; flex: none; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
   .admin-link {
     padding: 8px 14px;
     border-radius: 10px;
-    background: var(--row);
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: var(--text);
     font-size: 0.9rem;
     font-weight: 600;
     text-decoration: none;
   }
-  .admin-link:hover { background: var(--border); }
+  .admin-link:hover { background: var(--row); }
   main { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 8px; }
+  h1 { display: flex; align-items: center; gap: 10px; font-size: 1.9rem; line-height: 1.2; margin: 0; }
   .lead { color: var(--muted); margin: 0 0 20px; }
   .card {
     background: var(--surface);
@@ -172,14 +168,12 @@
 </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">🏒 Innebandy</div>
-    <a class="admin-link" href="/admin">Admin</a>
-  </header>
-
   <main>
-    <h1>Kommande innebandy</h1>
-    <p class="lead">Anmäl dig enkelt – ingen app behövs.</p>
+    <header class="head">
+      <h1><img class="logo" src="/logo.webp" alt="">Innebandy</h1>
+      <a class="admin-link" href="/admin">Admin</a>
+    </header>
+    <p class="lead">Anmäl dig enkelt.</p>
 
     <section class="card">
       <div class="meta" id="loading">Laddar…</div>
