@@ -1,3 +1,5 @@
+import { connect } from "cloudflare:sockets";
+
 const STATUSES = ["yes", "maybe", "no"];
 const TIME_ZONE = "Europe/Stockholm";
 // Ett pass räknas som "aktuellt" fram till 3 timmar efter start.
@@ -216,12 +218,19 @@ async function fillSeries(env) {
 
 // ---------- Mejl ----------
 
-function mailEnabled(env) {
-  return Boolean(env.RESEND_API_KEY);
+function gmailEnabled(env) {
+  return Boolean(env.GMAIL_USER && env.GMAIL_APP_PASSWORD);
 }
 
+function mailEnabled(env) {
+  return gmailEnabled(env) || Boolean(env.RESEND_API_KEY);
+}
+
+// Gmail används om det är inställt, annars Resend.
 async function sendMails(env, messages) {
   if (!mailEnabled(env) || !messages.length) return;
+  if (gmailEnabled(env)) return sendGmail(env, messages);
+
   const from = env.FROM_EMAIL || "Innebandy <onboarding@resend.dev>";
   // Resends batch-API tar upp till 100 mejl per anrop.
   for (let i = 0; i < messages.length; i += 100) {
@@ -234,6 +243,105 @@ async function sendMails(env, messages) {
       body: JSON.stringify(messages.slice(i, i + 100).map((m) => ({ from, ...m })))
     });
     if (!res.ok) console.error("Resend", res.status, await res.text());
+  }
+}
+
+// ---------- Gmail via SMTP ----------
+
+const SMTP_TIMEOUT_MS = 15000;
+
+function base64Utf8(text) {
+  let binary = "";
+  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+// Rubriker med å, ä, ö måste kodas (RFC 2047).
+function encodeHeader(text) {
+  return /^[\x20-\x7e]*$/.test(text) ? text : `=?UTF-8?B?${base64Utf8(text)}?=`;
+}
+
+function buildMail(from, fromName, m) {
+  const body = (base64Utf8(m.text).match(/.{1,76}/g) || []).join("\r\n");
+  return [
+    `From: ${encodeHeader(fromName)} <${from}>`,
+    `To: ${m.to.join(", ")}`,
+    `Subject: ${encodeHeader(m.subject)}`,
+    `Date: ${new Date().toUTCString().replace("GMT", "+0000")}`,
+    `Message-ID: <${crypto.randomUUID()}@${from.split("@")[1]}>`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=utf-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    body
+  ].join("\r\n");
+}
+
+// En minimal SMTP-klient över TLS (port 465). Gmail kräver att avsändaren
+// är kontot som loggar in, och lösenordet är ett applösenord.
+async function sendGmail(env, messages) {
+  const user = env.GMAIL_USER.trim();
+  const password = env.GMAIL_APP_PASSWORD.replace(/\s/g, "");
+  const socket = connect(
+    { hostname: env.SMTP_HOST || "smtp.gmail.com", port: Number(env.SMTP_PORT) || 465 },
+    { secureTransport: env.SMTP_TLS === "off" ? "off" : "on" }
+  );
+  const writer = socket.writable.getWriter();
+  const reader = socket.readable.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  // Läser ett helt svar (sista raden har formen "250 ...") och kontrollerar koden.
+  async function reply(expected) {
+    const deadline = Date.now() + SMTP_TIMEOUT_MS;
+    for (;;) {
+      const lines = buffer.split("\r\n");
+      const end = lines.findIndex((line) => /^\d{3}( |$)/.test(line));
+      if (end !== -1) {
+        buffer = lines.slice(end + 1).join("\r\n");
+        const code = Number(lines[end].slice(0, 3));
+        if (code !== expected) throw new Error(`SMTP ${lines.slice(0, end + 1).join(" | ")}`);
+        return;
+      }
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("SMTP-timeout")), deadline - Date.now());
+      });
+      const { value, done } = await Promise.race([reader.read(), timeout]).finally(() =>
+        clearTimeout(timer)
+      );
+      if (done) throw new Error("SMTP-anslutningen stängdes");
+      buffer += decoder.decode(value, { stream: true });
+    }
+  }
+
+  async function command(line, expected) {
+    await writer.write(new TextEncoder().encode(line + "\r\n"));
+    await reply(expected);
+  }
+
+  try {
+    await reply(220);
+    await command("EHLO innebandy", 250);
+    await command(`AUTH PLAIN ${base64Utf8(`\0${user}\0${password}`)}`, 235);
+
+    for (const m of messages) {
+      try {
+        await command(`MAIL FROM:<${user}>`, 250);
+        for (const to of m.to) await command(`RCPT TO:<${to}>`, 250);
+        await command("DATA", 354);
+        await command(buildMail(user, "Innebandy", m) + "\r\n.", 250);
+      } catch (err) {
+        // En felaktig adress ska inte stoppa resten av mejlen.
+        console.error("Gmail", m.to.join(", "), err.message);
+        await command("RSET", 250);
+      }
+    }
+    await command("QUIT", 221).catch(() => {});
+  } catch (err) {
+    console.error("Gmail", err.message);
+  } finally {
+    await socket.close().catch(() => {});
   }
 }
 
