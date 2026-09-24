@@ -214,7 +214,7 @@
 
   <div class="card" id="eventsCard" hidden>
     <h2>Kommande pass</h2>
-    <p class="help">Ställ in ett tillfälle så försvinner det från anmälningssidan. Det går att återställa.</p>
+    <p class="help">Ställ in ett tillfälle så försvinner det från anmälningssidan och spelare med e-post får ett mejl. Det går att återställa.</p>
     <div class="msg" id="eventMsg"></div>
     <ul id="events"></ul>
   </div>
@@ -373,7 +373,7 @@
               loadEvents();
             })
           : button("Ställ in", "secondary", async () => {
-              if (!confirm("Ställa in passet? Det försvinner från anmälningssidan.")) return;
+              if (!confirm("Ställa in passet? Det försvinner från anmälningssidan och spelare med e-post får ett mejl.")) return;
               await api(`/api/admin/events/${e.id}`, "PATCH", { cancelled: true });
               loadEvents();
             }));

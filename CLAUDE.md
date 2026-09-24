@@ -100,6 +100,8 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
 - Påminnelse skickas en gång per pass (`reminded_at`, markeras innan sändning)
   till spelare med e-post som inte svarat nej.
 - "Blir av"-mejlet går till `NOTIFY_EMAILS` en gång (`notified_at`).
+- När ett kommande pass ställs in (`PATCH /api/admin/events/:id`) mejlas alla
+  spelare med e-post. Bara när värdet faktiskt ändras, inte för passerade pass.
 - Länkarna byggs från `SITE_URL` i `wrangler.jsonc`.
 - **Status:** Inget mejl är konfigurerat i produktion än (varken Gmail eller Resend).
 
