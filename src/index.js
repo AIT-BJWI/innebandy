@@ -426,6 +426,30 @@ async function sendReminders(env) {
   }
 }
 
+// Mejl till alla spelare med e-post när ett kommande pass ställs in.
+async function sendCancelled(env, event) {
+  if (!mailEnabled(env)) return;
+  const { results: players } = await env.DB.prepare(
+    "SELECT name, email FROM players WHERE email IS NOT NULL AND email != ''"
+  ).all();
+  const when = formatStart(event.starts_at);
+  const where = event.location ? ` på ${event.location}` : "";
+  await sendMails(
+    env,
+    players.map((p) => ({
+      to: [p.email],
+      subject: `❌ Innebandy ${when} är inställt`,
+      text: [
+        `Hej ${p.name}!`,
+        "",
+        `Innebandy ${when}${where} är inställt.`,
+        "",
+        `Nästa pass hittar du här: ${(env.SITE_URL || "").replace(/\/$/, "")}/`
+      ].join("\n")
+    }))
+  );
+}
+
 // ---------- Publika API:er ----------
 
 async function comments(env, eventId, me, admin) {
@@ -608,7 +632,7 @@ async function adminPlayers(request, env, id) {
   return error("Okänd åtgärd.", 405);
 }
 
-async function adminEvents(request, env, id) {
+async function adminEvents(request, env, ctx, id) {
   if (request.method === "GET" && id === null) {
     await fillSeries(env);
     const since = new Date(Date.now() - EVENT_GRACE_MS).toISOString();
@@ -637,10 +661,18 @@ async function adminEvents(request, env, id) {
     return json({ ok: true, event }, 201);
   }
 
-  // Ställ in eller återställ ett pass.
+  // Ställ in eller återställ ett pass. Ställs ett kommande pass in mejlas spelarna.
   if (request.method === "PATCH" && id !== null) {
-    const { cancelled } = await readJson(request);
-    await env.DB.prepare("UPDATE events SET cancelled = ? WHERE id = ?").bind(cancelled ? 1 : 0, id).run();
+    const cancelled = (await readJson(request)).cancelled ? 1 : 0;
+    const event = await env.DB.prepare(
+      `UPDATE events SET cancelled = ? WHERE id = ? AND cancelled != ?
+       RETURNING starts_at, location`
+    )
+      .bind(cancelled, id, cancelled)
+      .first();
+    if (event && cancelled && Date.parse(event.starts_at) > Date.now()) {
+      ctx.waitUntil(sendCancelled(env, event));
+    }
     return json({ ok: true });
   }
 
@@ -768,7 +800,7 @@ export default {
         if (!isAdmin(request, env)) return error("Fel admin-lösenord.", 401);
         const id = admin[2] ? Number(admin[2]) : null;
         if (admin[1] === "players") return await adminPlayers(request, env, id);
-        if (admin[1] === "events") return await adminEvents(request, env, id);
+        if (admin[1] === "events") return await adminEvents(request, env, ctx, id);
         return await adminSeries(request, env, id);
       }
 
