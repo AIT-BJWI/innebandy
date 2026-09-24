@@ -63,7 +63,7 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
 
 **Databas** (`migrations/`)
 - `players` (name UNIQUE NOCASE, token, email)
-- `events` (starts_at i UTC-ISO, min_players, series_id, cancelled, notified_at, reminded_at)
+- `events` (starts_at i UTC-ISO, min_players, series_id, cancelled, notified_at, invited_at, reminded_at, summary_at)
 - `responses` (PK event_id + player_id; upsert, så samtidiga svar krockar inte)
 - `series` (weekday 1 = måndag, time "HH:MM" i Stockholmstid, start_date, end_date)
 - `comments`
@@ -97,8 +97,12 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
   anslutning. Ett avvisat mejl loggas och hoppas över (RSET).
 - Testa lokalt mot en falsk SMTP-server: `--var SMTP_HOST:127.0.0.1
   --var SMTP_PORT:2525 --var SMTP_TLS:off` till `wrangler dev`.
-- Påminnelse skickas en gång per pass (`reminded_at`, markeras innan sändning)
-  till spelare med e-post som inte svarat nej.
+- Schemalagda mejl per pass (`sendScheduledMails`, cron varje timme), i svensk tid:
+  inbjudan 3 dagar före kl. 12 till alla med e-post (`invited_at`), påminnelse
+  samma dag kl. 9 till dem som inte svarat (`reminded_at`) och sammanställning
+  samma dag kl. 13 till alla med e-post (`summary_at`). Kolumnen markeras innan
+  sändning. Varje mejl gäller fram till nästa (`dueMail`), så ett pass som skapas
+  sent får bara det senaste. Tiderna är konstanter högst upp i `src/index.js`.
 - "Blir av"-mejlet går till `NOTIFY_EMAILS` en gång (`notified_at`).
 - När ett kommande pass ställs in (`PATCH /api/admin/events/:id`) mejlas alla
   spelare med e-post. Bara när värdet faktiskt ändras, inte för passerade pass.
