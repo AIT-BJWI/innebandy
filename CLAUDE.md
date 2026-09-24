@@ -103,7 +103,9 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
 - När ett kommande pass ställs in (`PATCH /api/admin/events/:id`) mejlas alla
   spelare med e-post. Bara när värdet faktiskt ändras, inte för passerade pass.
 - Länkarna byggs från `SITE_URL` i `wrangler.jsonc`.
-- **Status:** Inget mejl är konfigurerat i produktion än (varken Gmail eller Resend).
+- **Status:** Gmail är i drift i produktion sedan 2026-09-24 (kontot
+  `fabrikeninnebandy@gmail.com`, hemligheterna `GMAIL_USER` och
+  `GMAIL_APP_PASSWORD`). Resend är inte konfigurerat. `NOTIFY_EMAILS` är inte satt.
 
 ## Arbetsflöde
 
@@ -142,5 +144,5 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
 - **Admin-lösenordet** är kort (7 tecken). Föreslå gärna ett längre:
   `npx wrangler secret put ADMIN_TOKEN`.
 - **Den gamla KV-kopplingen** `SIGNUPS` används inte längre och kan tas bort i Cloudflare.
-- **Idéer framåt:** sluttid och maxantal per pass, mejlkonfiguration (Gmail-konto,
-  eller Resend med egen domän), egen domän för sajten.
+- **Idéer framåt:** sluttid och maxantal per pass, egen domän för sajten
+  (och då ev. Resend i stället för Gmail).
