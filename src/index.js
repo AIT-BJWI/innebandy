@@ -8,10 +8,14 @@ const EVENT_GRACE_MS = 3 * 60 * 60 * 1000;
 const SERIES_HORIZON_DAYS = 14;
 // … och högst så långt fram även om slutdatumet ligger längre bort.
 const SERIES_MAX_DAYS = 400;
-// Påminnelse skickas när det är mindre än så här lång tid kvar till passet …
-const REMIND_BEFORE_MS = 24 * 60 * 60 * 1000;
-// … men inte om passet börjar om mindre än så här.
-const REMIND_MIN_MS = 60 * 60 * 1000;
+// Mejl före varje pass (svensk tid): inbjudan 3 dagar före kl. 12, påminnelse
+// till dem som inte svarat samma dag kl. 9 och sammanställning samma dag kl. 13.
+const INVITE_DAYS_BEFORE = 3;
+const INVITE_TIME = "12:00";
+const REMIND_TIME = "09:00";
+const SUMMARY_TIME = "13:00";
+// Cron kan starta någon sekund före hel timme, så räkna med lite marginal.
+const CRON_SLACK_MS = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ---------- Hjälpfunktioner ----------
@@ -383,45 +387,130 @@ async function notifyIfEnough(env, event) {
 
 const STATUS_TEXT = { yes: "Kommer", maybe: "Kanske", no: "Kan inte" };
 
-// Påminnelse dagen innan till alla med e-post som inte redan har tackat nej.
-async function sendReminders(env) {
+// När de schemalagda mejlen för ett pass ska gå.
+function mailTimes(startsAt) {
+  const wall = stockholmWallClock(Date.parse(startsAt));
+  const day = wall - (wall % DAY_MS);
+  return {
+    invite: stockholmToUtc(day - INVITE_DAYS_BEFORE * DAY_MS, INVITE_TIME),
+    reminder: stockholmToUtc(day, REMIND_TIME),
+    summary: stockholmToUtc(day, SUMMARY_TIME)
+  };
+}
+
+// Vilket mejl som står på tur för ett pass just nu, eller null. Varje mejl gäller
+// fram till nästa, så ett pass som skapas sent får bara det senaste.
+function dueMail(event, now) {
+  const t = mailTimes(event.starts_at);
+  const start = Date.parse(event.starts_at);
+  const soon = now + CRON_SLACK_MS;
+  if (now >= start) return null;
+  if (soon >= t.summary) return event.summary_at ? null : "summary";
+  if (soon >= t.reminder) return event.reminded_at ? null : "reminder";
+  if (soon >= t.invite) return event.invited_at ? null : "invite";
+  return null;
+}
+
+const MAIL_COLUMN = { invite: "invited_at", reminder: "reminded_at", summary: "summary_at" };
+
+function inviteMail(env, event, p) {
+  const when = formatStart(event.starts_at);
+  const where = event.location ? ` på ${event.location}` : "";
+  return {
+    to: [p.email],
+    subject: `Innebandy ${when} – kommer du?`,
+    text: [
+      `Hej ${p.name}!`,
+      "",
+      `Innebandy ${when}${where}. Minst ${event.min_players} behövs.`,
+      ...(event.note ? ["", event.note] : []),
+      "",
+      p.status ? `Ditt svar: ${STATUS_TEXT[p.status]}.` : "Svara om du kommer:",
+      personalLink(env, p.token)
+    ].join("\n")
+  };
+}
+
+function reminderMail(env, event, p, yes) {
+  const when = formatStart(event.starts_at);
+  return {
+    to: [p.email],
+    subject: `Påminnelse: innebandy ${when} – du har inte svarat`,
+    text: [
+      `Hej ${p.name}!`,
+      "",
+      `Du har inte svarat om innebandy ${when}.`,
+      `${yes} har svarat ja, minst ${event.min_players} behövs.`,
+      "",
+      "Svara här:",
+      personalLink(env, p.token)
+    ].join("\n")
+  };
+}
+
+function summaryMail(env, event, p, players) {
+  const when = formatStart(event.starts_at);
+  const where = event.location ? ` på ${event.location}` : "";
+  const names = (status) => players.filter((x) => x.status === status).map((x) => x.name);
+  const yes = names("yes");
+  const groups = [
+    [`Kommer (${yes.length})`, yes],
+    ["Kanske", names("maybe")],
+    ["Kan inte", names("no")],
+    ["Inte svarat", names(null)]
+  ].filter(([, list]) => list.length);
+  const missing = event.min_players - yes.length;
+  return {
+    to: [p.email],
+    subject: `Innebandy ${when} – ${yes.length} kommer`,
+    text: [
+      `Hej ${p.name}!`,
+      "",
+      `Innebandy ${when}${where}.`,
+      missing > 0
+        ? `${yes.length} har svarat ja. ${missing} till behövs (minst ${event.min_players}).`
+        : `${yes.length} har svarat ja, så det blir av!`,
+      ...groups.flatMap(([title, list]) => ["", `${title}:`, ...list.map((n) => "- " + n)]),
+      "",
+      p.status ? `Ditt svar: ${STATUS_TEXT[p.status]}. Ändra här:` : "Svara här:",
+      personalLink(env, p.token)
+    ].join("\n")
+  };
+}
+
+// Körs varje timme och skickar det mejl som står på tur för varje kommande pass.
+async function sendScheduledMails(env) {
   if (!mailEnabled(env)) return;
   const now = Date.now();
   const { results: events } = await env.DB.prepare(
-    `SELECT id, starts_at, location, note, min_players FROM events
-      WHERE cancelled = 0 AND reminded_at IS NULL AND starts_at > ? AND starts_at <= ?`
+    `SELECT id, starts_at, location, note, min_players, invited_at, reminded_at, summary_at
+       FROM events WHERE cancelled = 0 AND starts_at > ? AND starts_at <= ?`
   )
-    .bind(new Date(now + REMIND_MIN_MS).toISOString(), new Date(now + REMIND_BEFORE_MS).toISOString())
+    .bind(new Date(now).toISOString(), new Date(now + (INVITE_DAYS_BEFORE + 2) * DAY_MS).toISOString())
     .all();
 
   for (const event of events) {
+    const kind = dueMail(event, now);
+    if (!kind) continue;
+
+    // Markera först, så att två samtidiga körningar inte båda skickar.
+    const column = MAIL_COLUMN[kind];
     const claim = await env.DB.prepare(
-      "UPDATE events SET reminded_at = ? WHERE id = ? AND reminded_at IS NULL"
+      `UPDATE events SET ${column} = ? WHERE id = ? AND ${column} IS NULL`
     )
       .bind(new Date().toISOString(), event.id)
       .run();
     if (claim.meta.changes === 0) continue;
 
     const players = await roster(env, event.id);
+    const withEmail = players.filter((p) => p.email);
     const yes = players.filter((p) => p.status === "yes").length;
-    const when = formatStart(event.starts_at);
-    const where = event.location ? ` på ${event.location}` : "";
-    const messages = players
-      .filter((p) => p.email && p.status !== "no")
-      .map((p) => ({
-        to: [p.email],
-        subject: `Påminnelse: innebandy ${when} – ${yes} kommer`,
-        text: [
-          `Hej ${p.name}!`,
-          "",
-          `Innebandy ${when}${where}.`,
-          `${yes} har svarat ja, minst ${event.min_players} behövs.`,
-          ...(event.note ? ["", event.note] : []),
-          "",
-          p.status ? `Ditt svar: ${STATUS_TEXT[p.status]}.` : "Du har inte svarat än.",
-          `Svara eller ändra här: ${personalLink(env, p.token)}`
-        ].join("\n")
-      }));
+    const messages =
+      kind === "invite"
+        ? withEmail.map((p) => inviteMail(env, event, p))
+        : kind === "reminder"
+          ? withEmail.filter((p) => !p.status).map((p) => reminderMail(env, event, p, yes))
+          : withEmail.map((p) => summaryMail(env, event, p, players));
     await sendMails(env, messages);
   }
 }
@@ -778,7 +867,7 @@ async function adminSeries(request, env, id) {
 
 async function hourly(env) {
   await fillSeries(env);
-  await sendReminders(env);
+  await sendScheduledMails(env);
 }
 
 // ---------- Routning ----------

@@ -29,13 +29,16 @@ public/admin.html       ← adminsida (/admin): lägg till pass och spelare, kop
 - **Kommentarer**: alla med personlig länk kan kommentera passet och ta bort
   sina egna kommentarer. Den som är inloggad som admin i samma webbläsare kan
   ta bort alla.
-- **Påminnelse dagen innan**: spelare med e-post (läggs in på adminsidan) får
-  ett mejl med sin personliga länk ungefär ett dygn före passet, om de inte
-  redan har svarat nej. Kräver att mejl är inställt (se nedan).
+- **Mejl före varje pass** till spelare med e-post (läggs in på adminsidan),
+  med deras personliga länk. Kräver att mejl är inställt (se nedan).
+  - 3 dagar före kl. 12: inbjudan till alla (för ett måndagspass alltså fredag kl. 12).
+  - Samma dag kl. 9: påminnelse till dem som inte har svarat.
+  - Samma dag kl. 13: vilka som kommer, kanske kommer, inte kan och inte har svarat, till alla.
+- **Inställt pass**: när ett kommande pass ställs in får alla med e-post ett mejl.
 - Om mejl är inställt skickas också **ett** mejl till `NOTIFY_EMAILS` när
   tillräckligt många har svarat ja.
 - En schemalagd körning (Cron Trigger) går varje timme och fyller på
-  återkommande pass och skickar påminnelser.
+  återkommande pass och skickar de schemalagda mejlen.
 
 ## Första gången: skapa databasen
 Kräver Node.js (`brew install node`).
