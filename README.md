@@ -86,8 +86,24 @@ npx wrangler d1 execute innebandy-preview --remote --file migrations/<fil>.sql
 ```
 
 ## Mejl: påminnelser och "passet blir av"
-Mejl skickas via [Resend](https://resend.com) (gratis upp till 3 000 mejl/månad).
+Mejl kan skickas från ett **Gmail-konto** (gratis, ingen egen domän behövs)
+eller via [Resend](https://resend.com) (kräver egen domän). Är Gmail inställt
+används det, annars Resend. Utan något av dem skickas inga mejl.
 
+### Alternativ 1: Gmail
+1. Skapa gärna ett separat konto, t.ex. `innebandy.gaget@gmail.com`.
+2. Slå på **tvåstegsverifiering** för kontot (myaccount.google.com → Säkerhet).
+3. Skapa ett **applösenord** på https://myaccount.google.com/apppasswords
+   (16 tecken; mellanslagen spelar ingen roll).
+4. Sätt båda som hemligheter:
+   ```bash
+   npx wrangler secret put GMAIL_USER
+   npx wrangler secret put GMAIL_APP_PASSWORD
+   ```
+Mejlen skickas från Gmail-adressen med avsändarnamnet "Innebandy". Gmail
+tillåter cirka 500 mejl per dygn.
+
+### Alternativ 2: Resend
 1. Skapa ett konto på resend.com och en API-nyckel.
 2. För att kunna mejla vem som helst måste ni **verifiera en egen domän** i
    Resend (DNS-poster). Utan egen domän kan Resend bara skicka till den
@@ -96,10 +112,12 @@ Mejl skickas via [Resend](https://resend.com) (gratis upp till 3 000 mejl/månad
    ```bash
    npx wrangler secret put RESEND_API_KEY
    ```
-4. Lägg till under **Settings → Variables and Secrets** i Cloudflare:
-   - `FROM_EMAIL` = t.ex. `Innebandy <innebandy@er-doman.se>` (på den verifierade domänen)
-   - `NOTIFY_EMAILS` = valfritt, t.ex. `anna@mail.se,bjorn@mail.se`, för mejlet
-     när passet blir av
+4. Lägg till `FROM_EMAIL` under **Settings → Variables and Secrets** i
+   Cloudflare, t.ex. `Innebandy <innebandy@er-doman.se>` (på den verifierade domänen).
+
+### Gemensamt
+- `NOTIFY_EMAILS` = valfritt, t.ex. `anna@mail.se,bjorn@mail.se`, för mejlet
+  när passet blir av. Läggs under **Settings → Variables and Secrets**.
 
 `SITE_URL` i `wrangler.jsonc` används för länkarna i mejlen. Byt den om ni
 flyttar sajten till en egen domän.

@@ -88,13 +88,20 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
   sommar- och vintertid.
 - Visning sker med `Intl.DateTimeFormat` och `timeZone: "Europe/Stockholm"`.
 
-**Mejl** via Resends batch-API
-- Kräver hemligheten `RESEND_API_KEY`. Utan den hoppas all mejlkod över.
+**Mejl** via Gmail (SMTP) eller Resends batch-API
+- Gmail används om hemligheterna `GMAIL_USER` och `GMAIL_APP_PASSWORD`
+  (applösenord) finns, annars Resend med `RESEND_API_KEY`. Utan någon av dem
+  hoppas all mejlkod över.
+- Gmail skickas med en egen minimal SMTP-klient (`sendGmail`) över
+  `cloudflare:sockets`, TLS på port 465. Allt i ett och samma anrop går över en
+  anslutning. Ett avvisat mejl loggas och hoppas över (RSET).
+- Testa lokalt mot en falsk SMTP-server: `--var SMTP_HOST:127.0.0.1
+  --var SMTP_PORT:2525 --var SMTP_TLS:off` till `wrangler dev`.
 - Påminnelse skickas en gång per pass (`reminded_at`, markeras innan sändning)
   till spelare med e-post som inte svarat nej.
 - "Blir av"-mejlet går till `NOTIFY_EMAILS` en gång (`notified_at`).
 - Länkarna byggs från `SITE_URL` i `wrangler.jsonc`.
-- **Status:** Resend är inte konfigurerat än, varken nyckel eller verifierad domän.
+- **Status:** Inget mejl är konfigurerat i produktion än (varken Gmail eller Resend).
 
 ## Arbetsflöde
 
@@ -133,5 +140,5 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
 - **Admin-lösenordet** är kort (7 tecken). Föreslå gärna ett längre:
   `npx wrangler secret put ADMIN_TOKEN`.
 - **Den gamla KV-kopplingen** `SIGNUPS` används inte längre och kan tas bort i Cloudflare.
-- **Idéer framåt:** sluttid och maxantal per pass, mejlkonfiguration (Resend
-  med egen domän), egen domän för sajten.
+- **Idéer framåt:** sluttid och maxantal per pass, mejlkonfiguration (Gmail-konto,
+  eller Resend med egen domän), egen domän för sajten.
