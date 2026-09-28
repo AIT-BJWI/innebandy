@@ -60,6 +60,8 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
 - `PUT /api/response`, `POST /api/comments`, `DELETE /api/comments/:id`
 - `/api/admin/{players|events|series}[/:id]` med GET/POST/PATCH/DELETE.
   För players gör `POST /:id` en ny länk och `PATCH /:id` sparar e-post.
+- `POST /api/admin/mail` `{ subject, text, reply_to }`: informationsmejl till
+  alla spelare med e-post, med personlig länk. Svarar `{ sent, failed }`.
 
 **Databas** (`migrations/`)
 - `players` (name UNIQUE NOCASE, token, email)
@@ -103,6 +105,9 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
   samma dag kl. 13 till alla med e-post (`summary_at`). Kolumnen markeras innan
   sändning. Varje mejl gäller fram till nästa (`dueMail`), så ett pass som skapas
   sent får bara det senaste. Tiderna är konstanter högst upp i `src/index.js`.
+- Informationsmejl skickas från adminsidan ("Skicka meddelande"). `reply_to`
+  blir `Reply-To`, och adminsidan minns adressen i `localStorage`
+  (`innebandy-reply-to`). `sendMails` returnerar `{ sent, failed }`.
 - "Blir av"-mejlet går till `NOTIFY_EMAILS` en gång (`notified_at`).
 - När ett kommande pass ställs in (`PATCH /api/admin/events/:id`) mejlas alla
   spelare med e-post. Bara när värdet faktiskt ändras, inte för passerade pass.
