@@ -105,6 +105,7 @@
     font-family: inherit;
     cursor: pointer;
   }
+  button:disabled { opacity: 0.6; cursor: default; }
   button.secondary { background: var(--row); border-color: var(--row); color: var(--text); }
   button.danger { background: transparent; border-color: transparent; color: var(--danger); padding: 6px 8px; }
   .row { display: flex; gap: 8px; align-items: center; }
@@ -221,7 +222,7 @@
 
   <div class="card" id="playersCard" hidden>
     <h2>Spelare</h2>
-    <p class="help">Med e-post får spelaren en påminnelse dagen innan, med sin personliga länk.</p>
+    <p class="help">Med e-post får spelaren inbjudan, påminnelse och sammanställning inför varje pass, med sin personliga länk.</p>
     <div class="grid2 even">
       <div>
         <label for="playerName">Namn</label>
@@ -236,13 +237,29 @@
     <div class="msg" id="playerMsg"></div>
     <ul id="players"></ul>
   </div>
+
+  <div class="card" id="mailCard" hidden>
+    <h2>Skicka meddelande</h2>
+    <p class="help" id="mailHelp">Går till alla spelare med e-post, med deras personliga länk längst ner.</p>
+    <label for="mailSubject">Ämne</label>
+    <input id="mailSubject" type="text" maxlength="120" placeholder="t.ex. Uppehåll över jul">
+    <label for="mailText">Meddelande</label>
+    <textarea id="mailText" rows="6" maxlength="5000"></textarea>
+    <label for="mailReplyTo">Svar till (valfritt)</label>
+    <input id="mailReplyTo" type="email" maxlength="120" autocomplete="email" placeholder="din e-post">
+    <p class="help">Svar på mejlet hamnar här i stället för i sajtens Gmail.</p>
+    <div class="actions"><button id="sendMailBtn">Skicka</button></div>
+    <div class="msg" id="mailMsg"></div>
+  </div>
   </main>
 
 <script>
   const ADMIN_KEY = "innebandy-admin";
+  const REPLY_TO_KEY = "innebandy-reply-to";
   const WEEKDAYS = ["måndagar", "tisdagar", "onsdagar", "torsdagar", "fredagar", "lördagar", "söndagar"];
   const $ = (id) => document.getElementById(id);
   let adminToken = "";
+  let mailCount = 0; // antal spelare med e-post
   try { adminToken = localStorage.getItem(ADMIN_KEY) || ""; } catch {}
 
   async function api(path, method = "GET", body) {
@@ -306,6 +323,10 @@
 
   async function loadPlayers() {
     const { players } = await api("/api/admin/players");
+    mailCount = players.filter((p) => p.email).length;
+    $("mailHelp").textContent = mailCount
+      ? `Går till ${mailCount} spelare med e-post, med deras personliga länk längst ner.`
+      : "Ingen spelare har e-post än.";
     const ul = $("players");
     ul.innerHTML = "";
     if (!players.length) {
@@ -470,6 +491,7 @@
     $("eventsCard").hidden = false;
     $("seriesCard").hidden = false;
     $("playersCard").hidden = false;
+    $("mailCard").hidden = false;
   }
 
   function logout(message) {
@@ -480,6 +502,7 @@
     $("eventsCard").hidden = true;
     $("seriesCard").hidden = true;
     $("playersCard").hidden = true;
+    $("mailCard").hidden = true;
     if (message) show($("loginMsg"), message);
   }
 
@@ -544,6 +567,36 @@
       loadEvents();
     } catch (e) {
       show($("seriesMsg"), e.message);
+    }
+  });
+
+  try { $("mailReplyTo").value = localStorage.getItem(REPLY_TO_KEY) || ""; } catch {}
+
+  $("sendMailBtn").addEventListener("click", async () => {
+    const subject = $("mailSubject").value.trim();
+    const text = $("mailText").value.trim();
+    const reply_to = $("mailReplyTo").value.trim();
+    if (!subject) return show($("mailMsg"), "Skriv ett ämne.");
+    if (!text) return show($("mailMsg"), "Skriv ett meddelande.");
+    if (!mailCount) return show($("mailMsg"), "Ingen spelare har e-post.");
+    if (!confirm(`Skicka "${subject}" till ${mailCount} spelare?`)) return;
+    const btn = $("sendMailBtn");
+    btn.disabled = true;
+    show($("mailMsg"), "Skickar …", true);
+    try {
+      const { sent, failed } = await api("/api/admin/mail", "POST", { subject, text, reply_to });
+      try { localStorage.setItem(REPLY_TO_KEY, reply_to); } catch {}
+      if (failed) {
+        show($("mailMsg"), `${sent} mejl skickade, ${failed} gick inte fram.`, false);
+      } else {
+        $("mailSubject").value = "";
+        $("mailText").value = "";
+        show($("mailMsg"), `Meddelandet är skickat till ${sent} spelare.`, true);
+      }
+    } catch (e) {
+      show($("mailMsg"), e.message);
+    } finally {
+      btn.disabled = false;
     }
   });
 

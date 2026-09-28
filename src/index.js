@@ -230,24 +230,30 @@ function mailEnabled(env) {
   return gmailEnabled(env) || Boolean(env.RESEND_API_KEY);
 }
 
-// Gmail används om det är inställt, annars Resend.
+// Gmail används om det är inställt, annars Resend. Returnerar antal skickade och misslyckade.
 async function sendMails(env, messages) {
-  if (!mailEnabled(env) || !messages.length) return;
+  if (!mailEnabled(env) || !messages.length) return { sent: 0, failed: 0 };
   if (gmailEnabled(env)) return sendGmail(env, messages);
 
   const from = env.FROM_EMAIL || "Innebandy <onboarding@resend.dev>";
+  let sent = 0;
   // Resends batch-API tar upp till 100 mejl per anrop.
   for (let i = 0; i < messages.length; i += 100) {
+    const batch = messages.slice(i, i + 100);
     const res = await fetch("https://api.resend.com/emails/batch", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.RESEND_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(messages.slice(i, i + 100).map((m) => ({ from, ...m })))
+      body: JSON.stringify(
+        batch.map(({ replyTo, ...m }) => ({ from, ...m, ...(replyTo ? { reply_to: replyTo } : {}) }))
+      )
     });
-    if (!res.ok) console.error("Resend", res.status, await res.text());
+    if (res.ok) sent += batch.length;
+    else console.error("Resend", res.status, await res.text());
   }
+  return { sent, failed: messages.length - sent };
 }
 
 // ---------- Gmail via SMTP ----------
@@ -270,6 +276,7 @@ function buildMail(from, fromName, m) {
   return [
     `From: ${encodeHeader(fromName)} <${from}>`,
     `To: ${m.to.join(", ")}`,
+    ...(m.replyTo ? [`Reply-To: ${m.replyTo}`] : []),
     `Subject: ${encodeHeader(m.subject)}`,
     `Date: ${new Date().toUTCString().replace("GMT", "+0000")}`,
     `Message-ID: <${crypto.randomUUID()}@${from.split("@")[1]}>`,
@@ -294,6 +301,7 @@ async function sendGmail(env, messages) {
   const reader = socket.readable.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let sent = 0;
 
   // Läser ett helt svar (sista raden har formen "250 ...") och kontrollerar koden.
   async function reply(expected) {
@@ -335,6 +343,7 @@ async function sendGmail(env, messages) {
         for (const to of m.to) await command(`RCPT TO:<${to}>`, 250);
         await command("DATA", 354);
         await command(buildMail(user, "Innebandy", m) + "\r\n.", 250);
+        sent++;
       } catch (err) {
         // En felaktig adress ska inte stoppa resten av mejlen.
         console.error("Gmail", m.to.join(", "), err.message);
@@ -347,6 +356,7 @@ async function sendGmail(env, messages) {
   } finally {
     await socket.close().catch(() => {});
   }
+  return { sent, failed: messages.length - sent };
 }
 
 function personalLink(env, token) {
@@ -537,6 +547,35 @@ async function sendCancelled(env, event) {
       ].join("\n")
     }))
   );
+}
+
+// Informationsmejl från adminsidan till alla spelare med e-post.
+async function adminMail(request, env) {
+  if (request.method !== "POST") return error("Okänd åtgärd.", 405);
+  if (!mailEnabled(env)) return error("Mejl är inte inställt på servern.", 503);
+  const body = await readJson(request);
+  const subject = cleanText(body.subject, 120);
+  const text = cleanMultiline(body.text, 5000);
+  const replyTo = cleanEmail(body.reply_to);
+  if (!subject) return error("Skriv ett ämne.");
+  if (!text) return error("Skriv ett meddelande.");
+  if (replyTo === null) return error("Svarsadressen ser inte ut som en e-postadress.");
+
+  const { results: players } = await env.DB.prepare(
+    "SELECT name, email, token FROM players WHERE email IS NOT NULL AND email != '' ORDER BY name"
+  ).all();
+  if (!players.length) return error("Ingen spelare har e-post.");
+
+  const result = await sendMails(
+    env,
+    players.map((p) => ({
+      to: [p.email],
+      subject,
+      text: [`Hej ${p.name}!`, "", text, "", "Nästa pass och ditt svar:", personalLink(env, p.token)].join("\n"),
+      ...(replyTo ? { replyTo } : {})
+    }))
+  );
+  return json({ ok: true, ...result });
 }
 
 // ---------- Publika API:er ----------
@@ -883,6 +922,11 @@ export default {
       if (path === "/api/comments" && request.method === "POST") return await postComment(request, env);
       const comment = path.match(/^\/api\/comments\/(\d+)$/);
       if (comment && request.method === "DELETE") return await deleteComment(request, env, Number(comment[1]));
+
+      if (path === "/api/admin/mail") {
+        if (!isAdmin(request, env)) return error("Fel admin-lösenord.", 401);
+        return await adminMail(request, env);
+      }
 
       const admin = path.match(/^\/api\/admin\/(players|events|series)(?:\/(\d+))?$/);
       if (admin) {
