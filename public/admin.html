@@ -158,6 +158,9 @@
   }
   .tabs button:hover { color: var(--text); }
   .tabs button[aria-selected="true"] { background: var(--primary); color: var(--on-primary); }
+  .stack { display: grid; gap: 16px; }
+  .schedule .when { font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+  .help.note { margin-top: 12px; font-size: 0.85rem; }
   .msg { margin-top: 10px; font-size: 0.9rem; min-height: 1.2em; }
   .err { color: var(--danger); }
   .ok { color: var(--ok); }
@@ -179,7 +182,7 @@
     <button role="tab" data-tab="pass" aria-controls="eventsCard">Pass</button>
     <button role="tab" data-tab="serier" aria-controls="seriesCard">Serier</button>
     <button role="tab" data-tab="spelare" aria-controls="playersCard">Spelare</button>
-    <button role="tab" data-tab="mejl" aria-controls="mailCard">Mejl</button>
+    <button role="tab" data-tab="mejl" aria-controls="mailTab">Mejl</button>
   </nav>
 
   <div class="card" id="loginCard">
@@ -270,7 +273,8 @@
     <ul id="players"></ul>
   </div>
 
-  <div class="card" id="mailCard" hidden>
+  <div class="stack" id="mailTab" hidden>
+  <div class="card" id="mailCard">
     <h2>Skicka meddelande</h2>
     <p class="help" id="mailHelp">Går till alla spelare med e-post, med deras personliga länk längst ner.</p>
     <label for="mailSubject">Ämne</label>
@@ -282,6 +286,32 @@
     <p class="help">Svar på mejlet hamnar här i stället för i sajtens Gmail.</p>
     <div class="actions"><button id="sendMailBtn">Skicka</button></div>
     <div class="msg" id="mailMsg"></div>
+  </div>
+
+  <!-- Tiderna ska stämma med konstanterna högst upp i src/index.js. -->
+  <div class="card" id="autoMailCard">
+    <h2>Automatiska mejl</h2>
+    <p class="help">Inför varje pass skickas de här mejlen till spelare med e-post, med deras personliga länk. Tiderna är svensk tid.</p>
+    <ul class="schedule">
+      <li>
+        <div class="grow"><div>Inbjudan</div><div class="meta">Till alla. Frågar om de kommer.</div></div>
+        <span class="when">3 dagar före kl. 12</span>
+      </li>
+      <li>
+        <div class="grow"><div>Påminnelse</div><div class="meta">Bara till dem som inte har svarat.</div></div>
+        <span class="when">Samma dag kl. 9</span>
+      </li>
+      <li>
+        <div class="grow"><div>Sammanställning</div><div class="meta">Till alla. Vilka som kommer och om det blir av.</div></div>
+        <span class="when">Samma dag kl. 13</span>
+      </li>
+      <li>
+        <div class="grow"><div>Inställt pass</div><div class="meta">Till alla, när ett pass ställs in under fliken Pass.</div></div>
+        <span class="when">Direkt</span>
+      </li>
+    </ul>
+    <p class="help note">Läggs ett pass in sent skickas bara det mejl som står på tur. Ett pass som skapas samma morgon får alltså bara påminnelsen och sammanställningen.</p>
+  </div>
   </div>
   </main>
 
@@ -511,7 +541,7 @@
   }
 
   // Flikarna: namnet i adressen (#spelare) och kortet som visas.
-  const TABS = { pass: "eventsCard", serier: "seriesCard", spelare: "playersCard", mejl: "mailCard" };
+  const TABS = { pass: "eventsCard", serier: "seriesCard", spelare: "playersCard", mejl: "mailTab" };
 
   function tabFromHash() {
     const name = location.hash.slice(1);
