@@ -133,6 +133,31 @@
   li .meta { font-size: 0.8rem; color: var(--muted); }
   li button { padding: 6px 10px; font-size: 0.85rem; }
   li button.secondary { background: var(--surface); border-color: var(--border); }
+  /* Flikar: en del av adminsidan i taget. */
+  .tabs {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 4px;
+    margin: 0 -4px;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 0 0 8px var(--bg);
+  }
+  .tabs button {
+    padding: 9px 4px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .tabs button:hover { color: var(--text); }
+  .tabs button[aria-selected="true"] { background: var(--primary); color: var(--on-primary); }
   .msg { margin-top: 10px; font-size: 0.9rem; min-height: 1.2em; }
   .err { color: var(--danger); }
   .ok { color: var(--ok); }
@@ -150,6 +175,13 @@
   </header>
   <p class="lead">Admin – lägg in återkommande pass och spelare och skicka ut personliga länkar.</p>
 
+  <nav class="tabs" id="tabs" role="tablist" hidden>
+    <button role="tab" data-tab="pass" aria-controls="eventsCard">Pass</button>
+    <button role="tab" data-tab="serier" aria-controls="seriesCard">Serier</button>
+    <button role="tab" data-tab="spelare" aria-controls="playersCard">Spelare</button>
+    <button role="tab" data-tab="mejl" aria-controls="mailCard">Mejl</button>
+  </nav>
+
   <div class="card" id="loginCard">
     <h2>Logga in</h2>
     <form id="login">
@@ -164,7 +196,7 @@
 
   <div class="card" id="seriesCard" hidden>
     <h2 id="seriesTitle">Återkommande pass</h2>
-    <p class="help">Alla pass mellan start- och slutdatum skapas direkt. Enskilda tillfällen kan ställas in under Kommande pass.</p>
+    <p class="help">Alla pass mellan start- och slutdatum skapas direkt. Enskilda tillfällen kan ställas in under fliken Pass.</p>
     <div class="grid2 even">
       <div>
         <label for="seriesWeekday">Veckodag</label>
@@ -463,7 +495,7 @@
     $("saveSeriesBtn").textContent = "Spara ändringar";
     $("cancelEditBtn").hidden = false;
     show($("seriesMsg"), "");
-    $("seriesCard").scrollIntoView({ behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function stopEdit() {
@@ -478,6 +510,30 @@
     $("cancelEditBtn").hidden = true;
   }
 
+  // Flikarna: namnet i adressen (#spelare) och kortet som visas.
+  const TABS = { pass: "eventsCard", serier: "seriesCard", spelare: "playersCard", mejl: "mailCard" };
+
+  function tabFromHash() {
+    const name = location.hash.slice(1);
+    return name in TABS ? name : "pass";
+  }
+
+  function showTab(name) {
+    for (const b of $("tabs").querySelectorAll("button")) {
+      b.setAttribute("aria-selected", String(b.dataset.tab === name));
+    }
+    for (const [tab, card] of Object.entries(TABS)) $(card).hidden = tab !== name;
+    if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+  }
+
+  for (const b of $("tabs").querySelectorAll("button")) {
+    b.addEventListener("click", () => {
+      showTab(b.dataset.tab);
+      window.scrollTo({ top: 0 });
+    });
+  }
+  window.addEventListener("hashchange", () => { if (!$("tabs").hidden) showTab(tabFromHash()); });
+
   async function login() {
     try {
       await Promise.all([loadPlayers(), loadEvents(), loadSeries()]);
@@ -488,10 +544,8 @@
     try { localStorage.setItem(ADMIN_KEY, adminToken); } catch {}
     $("loginCard").hidden = true;
     $("logoutBtn").hidden = false;
-    $("eventsCard").hidden = false;
-    $("seriesCard").hidden = false;
-    $("playersCard").hidden = false;
-    $("mailCard").hidden = false;
+    $("tabs").hidden = false;
+    showTab(tabFromHash());
   }
 
   function logout(message) {
@@ -499,10 +553,8 @@
     try { localStorage.removeItem(ADMIN_KEY); } catch {}
     $("loginCard").hidden = false;
     $("logoutBtn").hidden = true;
-    $("eventsCard").hidden = true;
-    $("seriesCard").hidden = true;
-    $("playersCard").hidden = true;
-    $("mailCard").hidden = true;
+    $("tabs").hidden = true;
+    for (const card of Object.values(TABS)) $(card).hidden = true;
     if (message) show($("loginMsg"), message);
   }
 
@@ -561,7 +613,7 @@
           time: $("seriesTime").value
         });
         stopEdit();
-        show($("seriesMsg"), "Återkommande pass tillagt. Passen syns under Kommande pass.", true);
+        show($("seriesMsg"), "Återkommande pass tillagt. Passen syns under fliken Pass.", true);
       }
       loadSeries();
       loadEvents();
