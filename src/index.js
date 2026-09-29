@@ -10,6 +10,7 @@ const SERIES_HORIZON_DAYS = 14;
 const SERIES_MAX_DAYS = 400;
 // Mejl före varje pass (svensk tid): inbjudan 3 dagar före kl. 12, påminnelse
 // till dem som inte svarat samma dag kl. 9 och sammanställning samma dag kl. 13.
+// Beskrivs även på adminsidan (fliken Mejl), ändra där också.
 const INVITE_DAYS_BEFORE = 3;
 const INVITE_TIME = "12:00";
 const REMIND_TIME = "09:00";
