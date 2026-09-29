@@ -152,6 +152,6 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
 - **Tidszoner:** Workern kör i UTC. Formatera eller räkna aldrig datum utan `TIME_ZONE`.
 - **Admin-lösenordet** är kort (7 tecken). Föreslå gärna ett längre:
   `npx wrangler secret put ADMIN_TOKEN`.
-- **Den gamla KV-kopplingen** `SIGNUPS` används inte längre och kan tas bort i Cloudflare.
+- **Bindningar i Cloudflare:** förhandsversioner använder också bindningar som är sparade i Cloudflare, inte bara `wrangler.jsonc`. En borttagen resurs som fortfarande är kopplad där (som den gamla KV-kopplingen `SIGNUPS`, borttagen 2026-09-28) får förhandsbygget att misslyckas med "not found".
 - **Idéer framåt:** sluttid och maxantal per pass, egen domän för sajten
   (och då ev. Resend i stället för Gmail).
