@@ -116,6 +116,17 @@
     .grid2, .grid2.even { grid-template-columns: minmax(0, 1fr); }
   }
   .help { color: var(--muted); font-size: 0.9rem; margin: 0; }
+  /* Dialog för att ställa in ett pass. */
+  dialog {
+    width: min(100% - 32px, 440px);
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+    color: var(--text);
+  }
+  dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+  dialog .actions { display: flex; gap: 8px; justify-content: flex-end; }
   li.cancelled .grow > div:first-child { text-decoration: line-through; color: var(--muted); }
   .actions { margin-top: 14px; }
   ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
@@ -306,7 +317,7 @@
         <span class="when">Samma dag kl. 13</span>
       </li>
       <li>
-        <div class="grow"><div>Inställt pass</div><div class="meta">Till alla, när ett pass ställs in under fliken Pass.</div></div>
+        <div class="grow"><div>Inställt pass</div><div class="meta">Till alla, när ett pass ställs in under fliken Pass. Med orsaken om du skriver en.</div></div>
         <span class="when">Direkt</span>
       </li>
     </ul>
@@ -314,6 +325,20 @@
   </div>
   </div>
   </main>
+
+  <dialog id="cancelDialog">
+    <form method="dialog">
+      <h2>Ställa in passet?</h2>
+      <p class="help" id="cancelWhen"></p>
+      <label for="cancelReason">Orsak (valfritt)</label>
+      <textarea id="cancelReason" rows="3" maxlength="1000" placeholder="t.ex. Hallen är upptagen av en match"></textarea>
+      <p class="help">Passet försvinner från anmälningssidan. Spelare med e-post får ett mejl med orsaken.</p>
+      <div class="actions">
+        <button class="secondary" value="cancel" formnovalidate>Avbryt</button>
+        <button value="ok">Ställ in</button>
+      </div>
+    </form>
+  </dialog>
 
 <script>
   const ADMIN_KEY = "innebandy-admin";
@@ -455,10 +480,22 @@
               await api(`/api/admin/events/${e.id}`, "PATCH", { cancelled: false });
               loadEvents();
             })
-          : button("Ställ in", "secondary", async () => {
-              if (!confirm("Ställa in passet? Det försvinner från anmälningssidan och spelare med e-post får ett mejl.")) return;
-              await api(`/api/admin/events/${e.id}`, "PATCH", { cancelled: true });
-              loadEvents();
+          : button("Ställ in", "secondary", () => {
+              const dialog = $("cancelDialog");
+              $("cancelWhen").textContent = [formatStart(e.starts_at), e.location].filter(Boolean).join(" · ");
+              $("cancelReason").value = "";
+              dialog.returnValue = "";
+              dialog.onclose = async () => {
+                if (dialog.returnValue !== "ok") return;
+                try {
+                  await api(`/api/admin/events/${e.id}`, "PATCH", { cancelled: true, reason: $("cancelReason").value });
+                  loadEvents();
+                } catch (err) {
+                  show($("eventMsg"), err.message);
+                }
+              };
+              dialog.showModal();
+              $("cancelReason").focus();
             }));
       } else {
         li.append(button("✕", "danger", async () => {

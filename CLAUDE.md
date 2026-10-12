@@ -110,7 +110,9 @@ Lokalt admin-lösenord står i `.dev.vars` (`ADMIN_TOKEN=lokal-test`). Filen är
   (`innebandy-reply-to`). `sendMails` returnerar `{ sent, failed }`.
 - "Blir av"-mejlet går till `NOTIFY_EMAILS` en gång (`notified_at`).
 - När ett kommande pass ställs in (`PATCH /api/admin/events/:id`) mejlas alla
-  spelare med e-post. Bara när värdet faktiskt ändras, inte för passerade pass.
+  spelare med e-post. Adminsidan frågar efter en valfri orsak (`reason`) i en
+  dialog, och den läggs in i mejlet. Bara när värdet faktiskt ändras, inte för
+  passerade pass.
 - Länkarna byggs från `SITE_URL` i `wrangler.jsonc`.
 - **Status:** Gmail är i drift i produktion sedan 2026-09-24 (kontot
   `fabrikeninnebandy@gmail.com`, hemligheterna `GMAIL_USER` och
