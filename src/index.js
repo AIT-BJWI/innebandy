@@ -527,7 +527,8 @@ async function sendScheduledMails(env) {
 }
 
 // Mejl till alla spelare med e-post när ett kommande pass ställs in.
-async function sendCancelled(env, event) {
+// reason är adminens (valfria) förklaring och läggs in i mejlet.
+async function sendCancelled(env, event, reason) {
   if (!mailEnabled(env)) return;
   const { results: players } = await env.DB.prepare(
     "SELECT name, email FROM players WHERE email IS NOT NULL AND email != ''"
@@ -544,6 +545,7 @@ async function sendCancelled(env, event) {
         "",
         `Innebandy ${when}${where} är inställt.`,
         "",
+        ...(reason ? [reason, ""] : []),
         `Nästa pass hittar du här: ${(env.SITE_URL || "").replace(/\/$/, "")}/`
       ].join("\n")
     }))
@@ -792,7 +794,8 @@ async function adminEvents(request, env, ctx, id) {
 
   // Ställ in eller återställ ett pass. Ställs ett kommande pass in mejlas spelarna.
   if (request.method === "PATCH" && id !== null) {
-    const cancelled = (await readJson(request)).cancelled ? 1 : 0;
+    const body = await readJson(request);
+    const cancelled = body.cancelled ? 1 : 0;
     const event = await env.DB.prepare(
       `UPDATE events SET cancelled = ? WHERE id = ? AND cancelled != ?
        RETURNING starts_at, location`
@@ -800,7 +803,7 @@ async function adminEvents(request, env, ctx, id) {
       .bind(cancelled, id, cancelled)
       .first();
     if (event && cancelled && Date.parse(event.starts_at) > Date.now()) {
-      ctx.waitUntil(sendCancelled(env, event));
+      ctx.waitUntil(sendCancelled(env, event, cleanMultiline(body.reason, 1000)));
     }
     return json({ ok: true });
   }
